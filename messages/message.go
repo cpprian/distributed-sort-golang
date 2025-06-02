@@ -27,12 +27,12 @@ type TypeMetadata struct {
 
 // MessageRegistry maps MessageTypes to their metadata.
 var MessageRegistry = map[MessageType]TypeMetadata{
-	ItemExchange:      {GoType: reflect.TypeOf(ItemExchangeMessage{}), RequireResponse: true},
+	ItemExchange:      {GoType: reflect.TypeOf(ItemExchangeMessage[string]{}), RequireResponse: true},
 	CornerItemChange:  {GoType: reflect.TypeOf(CornerItemChangeMessage[any]{}), RequireResponse: true},
 	NodesList:         {GoType: reflect.TypeOf(NodesListMessage{}), RequireResponse: true},
 	NodesListResponse: {GoType: reflect.TypeOf(NodesListResponseMessage{}), RequireResponse: false},
 	AnnounceSelf:      {GoType: reflect.TypeOf(AnnounceSelfMessage{}), RequireResponse: false},
-	GetItems:          {GoType: reflect.TypeOf(GetItemsMessage{}), RequireResponse: true},
+	GetItems:          {GoType: reflect.TypeOf(GetItemsMessage[string]{}), RequireResponse: true},
 	Confirm:           {GoType: reflect.TypeOf(ConfirmMessage{}), RequireResponse: false},
 	ErrorType:         {GoType: reflect.TypeOf(ErrorMessage{}), RequireResponse: false},
 }

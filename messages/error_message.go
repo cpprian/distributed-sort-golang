@@ -9,8 +9,8 @@ type ErrorMessage struct {
 func NewErrorMessage(txID uuid.UUID) ErrorMessage {
 	return ErrorMessage{
 		Message: Message{
-			Type:          MessageError,
-			TransactionID: &txID,
+			MessageType:    ErrorType,
+			TransactionID: txID,
 		},
 	}
 }

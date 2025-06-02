@@ -99,7 +99,7 @@ func writeData(rw *bufio.ReadWriter) {
 	}
 }
 
-func main() {
+func main2() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

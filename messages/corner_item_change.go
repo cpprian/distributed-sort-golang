@@ -9,7 +9,7 @@ type CornerItemChangeMessage[T any] struct {
 func NewCornerItemChangeMessage[T any](item T, senderID int64) CornerItemChangeMessage[T] {
 	return CornerItemChangeMessage[T]{
 		Message: Message{
-			Type: MessageCornerItemChange,
+			MessageType: CornerItemChange,
 		},
 		Item:     item,
 		SenderID: senderID,

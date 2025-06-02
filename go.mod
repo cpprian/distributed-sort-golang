@@ -1,10 +1,14 @@
-module distributed-sort
+module github.com/cpprian/distributed-sort-golang
 
 go 1.23.6
 
 require (
 	github.com/bino7/go-libp2p v0.29.0
+	github.com/google/uuid v1.6.0
 	github.com/libp2p/go-libp2p v0.41.1
+	github.com/libp2p/go-libp2p-core v0.20.1
+	github.com/libp2p/go-libp2p-mplex v0.10.0
+	github.com/libp2p/go-libp2p-noise v0.5.0
 	github.com/multiformats/go-multiaddr v0.15.0
 )
 
@@ -25,7 +29,6 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/pprof v0.0.0-20250208200701-d0013a598941 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/ipfs/go-cid v0.5.0 // indirect

@@ -13,7 +13,7 @@ type AnnounceSelfMessage struct {
 func NewAnnounceSelfMessage(id int64, addr serializers.MultiaddrJSON) AnnounceSelfMessage {
 	return AnnounceSelfMessage{
 		Message: Message{
-			Type: MessageAnnounceSelf,
+			MessageType:   AnnounceSelf,
 		},
 		ID:               id,
 		ListeningAddress: addr,

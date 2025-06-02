@@ -9,8 +9,8 @@ type ConfirmMessage struct {
 func NewConfirmMessage(txID uuid.UUID) ConfirmMessage {
 	return ConfirmMessage{
 		Message: Message{
-			Type:          MessageConfirm,
-			TransactionID: &txID,
+			MessageType:   Confirm,
+			TransactionID: txID,
 		},
 	}
 }
