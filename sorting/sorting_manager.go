@@ -1,4 +1,4 @@
-package distributed_sort
+package sorting
 
 import (
 	"fmt"
@@ -201,7 +201,7 @@ func (sm *SortingManager) ProcessMessage(msg messages.MessageInterface) {
 		defer sm.mu.Unlock()
 		for id, addr := range m.ParticipatingNodes {
 			if _, exists := sm.ParticipatingNodes[int(id)]; !exists {
-				sm.ParticipatingNodes[int(id)] = addr.String()
+				sm.ParticipatingNodes[int(id)] = addr.String()	
 			}
 		}
 		log.Printf("Updated participating nodes from response: %v", sm.ParticipatingNodes)
@@ -221,31 +221,45 @@ func (sm *SortingManager) Activate(knownParticipant string) {
 	if knownParticipant == "" {
 		sm.ID = 0
 		sm.ParticipatingNodes[sm.ID] = sm.Host.GetListenAddress()
+		log.Printf("Activated SortingManager with ID %d and no known participants", sm.ID)
+		if sm.Host == nil {
+			log.Println("Host is not set. Cannot announce self.")
+			return
+		}
+		sm.AnnounceSelf()
 	} else {
-		// Simulate waiting for population
-		// In real code, perform a request to knownParticipant to get node list
-		fmt.Printf("Waiting for population from known participant: %s\n", knownParticipant)
-		// Here we would typically fetch the existing nodes from the known participant
-		// For simplicity, we assume the known participant is the first node
-		sm.ParticipatingNodes = make(map[int]string)
-		sm.Host.Broadcast(messages.NewAnnounceSelfMessage(int64(sm.ID), serializers.MultiaddrJSON{Multiaddr: ma.StringCast(knownParticipant)}).Message, messages.AnnounceSelf)
-		// Set the ID based on the maximum key in ParticipatingNodes
-		// This is a placeholder; in a real scenario, you would fetch the existing nodes
+		// If a known participant is provided, set the ID to the maximum existing ID + 1
+		// and add the known participant to the ParticipatingNodes map.
+		// This is a simplified example; in a real scenario, you would fetch the existing nodes
 		// and determine the ID based on the maximum existing node ID.
 		sm.mu.Lock()
 		defer sm.mu.Unlock()
-
-		if len(sm.ParticipatingNodes) > 0 {
-			sm.ID = maxKey(sm.ParticipatingNodes) + 1
-		} else {
-			sm.ID = 0 // If no nodes, start with ID 0
+		m, err := ma.NewMultiaddr(knownParticipant)
+		if err != nil {
+			log.Printf("Failed to parse known participant address: %v", err)
+			return
 		}
-		sm.ParticipatingNodes[sm.ID] = sm.Host.GetListenAddress()
-		fmt.Printf("Assigned ID %d to SortingManager\n", sm.ID)
 
-		log.Printf("Participating nodes: %v", sm.ParticipatingNodes)
+		sm.ID = maxKey(sm.ParticipatingNodes) + 1
+		sm.ParticipatingNodes[sm.ID] = m.String()
+		log.Printf("Activated SortingManager with ID %d and known participant %s", sm.ID, knownParticipant)
+
+		if sm.Host == nil {
+			log.Println("Host is not set. Cannot announce self.")
+			return
+		}
+
+		// Announce self with the new ID and address
+		addrStr := sm.Host.GetListenAddress()
+		addr, err := ma.NewMultiaddr(addrStr)
+		if err != nil {
+			log.Printf("Failed to parse listen address: %v", err)
+			return
+		}
+		msg := messages.NewAnnounceSelfMessage(int64(sm.ID), serializers.MultiaddrJSON{Multiaddr: addr})
+		log.Printf("Announcing self with ID %d at address %s", sm.ID, addrStr)
+		sm.Host.Broadcast(msg.Message, msg.Type())
 	}
-	sm.AnnounceSelf()
 }
 
 func maxKey(m map[int]string) int {
@@ -257,3 +271,29 @@ func maxKey(m map[int]string) int {
 	}
 	return max
 }
+
+func (sm *SortingManager) GetItems() []int {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	return sm.Items
+}
+
+func (sm *SortingManager) GetAllItems() []int {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	itemsCopy := make([]int, len(sm.Items))
+	copy(itemsCopy, sm.Items)
+	return itemsCopy
+}
+
+func (sm *SortingManager) GetParticipatingNodes() map[int]string {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	nodesCopy := make(map[int]string)
+	for k, v := range sm.ParticipatingNodes {
+		nodesCopy[k] = v
+	}
+	return nodesCopy
+}
+
+

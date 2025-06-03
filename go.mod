@@ -3,7 +3,6 @@ module github.com/cpprian/distributed-sort-golang
 go 1.23.6
 
 require (
-	github.com/bino7/go-libp2p v0.29.0
 	github.com/google/uuid v1.6.0
 	github.com/libp2p/go-libp2p v0.41.1
 	github.com/libp2p/go-libp2p-core v0.20.1 // indirect

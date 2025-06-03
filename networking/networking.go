@@ -1,4 +1,4 @@
-package distributed_sort
+package networking
 
 import (
 	"bufio"
@@ -9,13 +9,12 @@ import (
 	"os"
 	"strings"
 
-	mplex "github.com/bino7/go-libp2p/p2p/muxer/mplex"
+	mplex "github.com/cpprian/distributed-sort-golang/go-libp2p/p2p/muxer/mplex"
 	hostlib "github.com/libp2p/go-libp2p"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	noise "github.com/libp2p/go-libp2p/p2p/security/noise"
 	ma "github.com/multiformats/go-multiaddr"
 
-	// peerstore "github.com/libp2p/go-libp2p/core/peer"
 	host "github.com/libp2p/go-libp2p/core/host"
 	network "github.com/libp2p/go-libp2p/core/network"
 	protocol "github.com/libp2p/go-libp2p/core/protocol"
@@ -26,14 +25,12 @@ const (
 )
 
 type Libp2pHost struct {
-	// host         hostlib.Host
 	host         host.Host
 	listenAddr   ma.Multiaddr
 	msgProcessor func(map[string]interface{})
 }
 
 func NewLibp2pHost(port int, msgProcessor func(map[string]interface{})) (*Libp2pHost, error) {
-	_ = context.Background()
 	listenAddr, _ := ma.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port))
 
 	prvKey, _, err := crypto.GenerateEd25519Key(nil)
@@ -101,9 +98,23 @@ func (l *Libp2pHost) writeData(s network.Stream) {
 }
 
 func (l *Libp2pHost) Broadcast(message interface{}) {
-	l.SendMessage(message)
-	msgMap := message.(map[string]interface{}) // unsafe cast; better with a defined interface
-	l.msgProcessor(msgMap)
+	encoded, err := json.Marshal(message)
+	if err != nil {
+		log.Println("Failed to encode message:", err)
+		return
+	}
+	fmt.Println("Broadcasting message:", string(encoded))
+	for _, peer := range l.host.Network().Peers() {
+		stream, err := l.host.NewStream(context.Background(), peer, protocol.ID(ProtocolID))
+		if err != nil {
+			log.Println("Failed to create stream:", err)
+			continue
+		}
+		w := bufio.NewWriter(stream)
+		w.WriteString(string(encoded) + "\n")
+		w.Flush()
+		stream.Close()
+	}
 }
 
 func (l *Libp2pHost) SendMessage(message interface{}) {
@@ -113,7 +124,19 @@ func (l *Libp2pHost) SendMessage(message interface{}) {
 		return
 	}
 	fmt.Println("Sending message:", string(encoded))
-	// actual sending to peers not implemented here (requires peer ID, streams, etc.)
+
+	for _, peer := range l.host.Network().Peers() {
+		stream, err := l.host.NewStream(context.Background(), peer, protocol.ID(ProtocolID))
+		if err != nil {
+			log.Println("Failed to create stream:", err)
+			continue
+		}
+		w := bufio.NewWriter(stream)
+		w.WriteString(string(encoded) + "\n")
+		w.Flush()
+		stream.Close()
+	}
+	log.Println("Message sent to all peers")
 }
 
 func (l *Libp2pHost) GetListenAddress() string {
@@ -168,4 +191,28 @@ func (l *Libp2pHost) GetPeerIDAndAddresses() map[string][]string {
 	peerID := l.GetPeerID()
 	peerInfo[peerID] = l.GetPeerAddresses()
 	return peerInfo
+}
+
+func (l *Libp2pHost) GetPeerInfo() map[string][]string {
+	peerInfo := make(map[string][]string)
+	for _, peer := range l.host.Network().Peers() {
+		addresses := make([]string, 0, len(l.host.Peerstore().Addrs(peer)))
+		for _, addr := range l.host.Peerstore().Addrs(peer) {
+			addresses = append(addresses, addr.String())
+		}
+		peerInfo[peer.String()] = addresses
+	}
+	return peerInfo
+}
+
+func (l *Libp2pHost) Addrs() []ma.Multiaddr {
+	addrs := make([]ma.Multiaddr, 0, len(l.host.Addrs()))
+	for _, addr := range l.host.Addrs() {
+		addrs = append(addrs, addr)
+	}
+	return addrs
+}
+
+func (l *Libp2pHost) ID() string {
+	return l.host.ID().String()
 }
