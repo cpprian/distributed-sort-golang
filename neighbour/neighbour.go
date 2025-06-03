@@ -1,4 +1,4 @@
-package distributed_sort
+package node
 
 import (
 	"encoding/json"

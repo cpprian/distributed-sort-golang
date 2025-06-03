@@ -6,7 +6,7 @@ require (
 	github.com/bino7/go-libp2p v0.29.0
 	github.com/google/uuid v1.6.0
 	github.com/libp2p/go-libp2p v0.41.1
-	github.com/libp2p/go-libp2p-core v0.20.1
+	github.com/libp2p/go-libp2p-core v0.20.1 // indirect
 	github.com/libp2p/go-libp2p-mplex v0.10.0
 	github.com/libp2p/go-libp2p-noise v0.5.0
 	github.com/multiformats/go-multiaddr v0.15.0

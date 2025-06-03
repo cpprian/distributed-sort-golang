@@ -19,73 +19,98 @@ import (
 	mplex "github.com/libp2p/go-libp2p-mplex"
 
 	"github.com/cpprian/distributed-sort-golang"
+	ms "github.com/cpprian/distributed-sort-golang/messages"
+	serial "github.com/cpprian/distributed-sort-golang/serializers"
 )
 
 func main() {
 	ctx := context.Background()
 
 	// Create SortingManager instance
-	sortingManager := distributed_sort.NewSortingManager[int]()
+	sortingManager := distributed_sort.NewSortingManager()
 
-	// Create Messaging and bind the processMessage function
-	messaging := distributed_sort.NewMessagingProtocol(sortingManager.ProcessMessage)
-	sortingManager.SetMessaging(messaging)
+	// Create a Libp2pHost instance
+	host, err := distributed_sort.NewLibp2pHost(0, func(msg map[string]interface{}) {
+		var messageType string
+		if val, ok := msg["type"]; ok {
+			messageType = val.(string)
+		}
 
-	// Set up the libp2p host with noise and mplex
-	node, err := libp2p.New(
-		libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"),
-		libp2p.Security(noise.ID, noise.New),
-		libp2p.Muxer("/mplex/6.7.0", mplex.DefaultTransport),
-	)
+		switch messageType {
+		case ms.AnnounceSelfMessageType:
+			var announceMsg ms.AnnounceSelfMessage
+			if err := serial.Unmarshal(msg, &announceMsg); err != nil {
+				log.Printf("Error unmarshalling AnnounceSelfMessage: %v", err)
+				return
+			}
+			sortingManager.ParticipatingNodes[announceMsg.ID] = announceMsg.ListeningAddress
+
+		case ms.AddItemMessageType:
+			var addItemMsg ms.AddItemMessage
+			if err := serial.Unmarshal(msg, &addItemMsg); err != nil {
+				log.Printf("Error unmarshalling AddItemMessage: %v", err)
+				return
+			}
+			sortingManager.Add(addItemMsg.Item)
+
+		case ms.RemoveItemMessageType:
+			var removeItemMsg ms.RemoveItemMessage
+			if err := serial.Unmarshal(msg, &removeItemMsg); err != nil {
+				log.Printf("Error unmarshalling RemoveItemMessage: %v", err)
+				return
+			}
+			sortingManager.Remove(removeItemMsg.Item)
+
+		default:
+			log.Printf("Unknown message type: %s", messageType)
+		}
+	})
 	if err != nil {
-		log.Fatalf("failed to create libp2p host: %v", err)
+		log.Fatalf("Failed to create Libp2p host: %v", err)
 	}
 
-	sortingManager.SetHost(node)
+	sortingManager.SetHost(host)
+	// Start the host
+	if err := host.Start(ctx); err != nil {
+		log.Fatalf("Failed to start host: %v", err)
+	}
 
-	// Connect to a peer if address is provided
-	var target ma.Multiaddr
-	if len(os.Args) > 1 {
-		targetStr := os.Args[1]
-		target, err = ma.NewMultiaddr(targetStr)
+	// Print the listening address
+	listenAddr := host.GetListenAddress()
+	log.Printf("Listening on: %s", listenAddr)
+	// Announce self to the network
+	sortingManager.AnnounceSelf()
+	// Start reading input from the user
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Print("Enter a number to add (or 'exit' to quit): ")
+		input, err := reader.ReadString('\n')
 		if err != nil {
-			log.Fatalf("invalid multiaddr: %v", err)
+			log.Printf("Error reading input: %v", err)
+			continue
 		}
-	}
+		input = strings.TrimSpace(input)
 
-	sortingManager.Activate(ctx, target)
-
-	fmt.Printf("Activated node: %v %v\n", node.Addrs(), sortingManager.GetId())
-
-	// Add 10 random items
-	r := rand.New(rand.NewSource(0))
-	for i := 0; i < 10; i++ {
-		sortingManager.Add(r.Intn(100))
-	}
-
-	// Command loop
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		line := scanner.Text()
-		switch {
-		case strings.EqualFold(line, "allitems"):
-			fmt.Println(sortingManager.GetAllItems())
-		case strings.EqualFold(line, "items"):
-			fmt.Println(sortingManager.GetItems())
-		case strings.HasPrefix(strings.ToLower(line), "add "):
-			parts := strings.Split(line, " ")
-			if len(parts) == 2 {
-				if number, err := strconv.Atoi(parts[1]); err == nil {
-					sortingManager.Add(number)
-				}
-			}
-		case strings.HasPrefix(strings.ToLower(line), "del "):
-			parts := strings.Split(line, " ")
-			if len(parts) == 2 {
-				if number, err := strconv.Atoi(parts[1]); err == nil {
-					sortingManager.Remove(number)
-				}
-			}
+		if input == "exit" {
+			break
 		}
+
+		item, err := strconv.Atoi(input)
+		if err != nil {
+			log.Printf("Invalid input, please enter a valid number: %v", err)
+			continue
+		}
+
+		sortingManager.Add(item)
+		log.Printf("Current sorted items: %v", sortingManager.Items)
 	}
+	log.Println("Exiting...")
+	if err := host.Stop(); err != nil {
+		log.Fatalf("Failed to stop host: %v", err)
+	}
+	if err := host.Close(); err != nil {
+		log.Fatalf("Failed to close host: %v", err)
+	}
+	log.Println("Host closed successfully.")
+	fmt.Println("Goodbye!")
 }
