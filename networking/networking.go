@@ -18,6 +18,8 @@ import (
 	host "github.com/libp2p/go-libp2p/core/host"
 	network "github.com/libp2p/go-libp2p/core/network"
 	protocol "github.com/libp2p/go-libp2p/core/protocol"
+
+	"github.com/cpprian/distributed-sort-golang/messages"
 )
 
 const (
@@ -117,8 +119,8 @@ func (l *Libp2pHost) Broadcast(message interface{}) {
 	}
 }
 
-func (l *Libp2pHost) SendMessage(message interface{}) {
-	encoded, err := json.Marshal(message)
+func (l *Libp2pHost) SendMessage(msg messages.MessageInterface) {
+	encoded, err := json.Marshal(msg)
 	if err != nil {
 		log.Println("Failed to encode message:", err)
 		return

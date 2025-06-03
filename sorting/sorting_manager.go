@@ -15,7 +15,7 @@ import (
 // HostInterface defines the methods required for the host in SortingManager.
 type HostInterface interface {
 	GetListenAddress() string
-	Broadcast(msg messages.MessageInterface, msgType messages.MessageType)
+	Broadcast(interface{})
 	SendMessage(msg messages.MessageInterface)
 }
 type SortingManager struct {
@@ -31,6 +31,8 @@ func NewSortingManager() *SortingManager {
 		ID:                 0,
 		Items:              []int{},
 		ParticipatingNodes: make(map[int]string),
+		Host:               nil,
+		mu:                 sync.Mutex{},
 	}
 }
 
@@ -52,13 +54,14 @@ func (sm *SortingManager) AnnounceSelf() {
 	log.Printf("Announcing self with ID %d at address %s", sm.ID, addrStr)
 
 	// Broadcast the message to all nodes
-	sm.Host.Broadcast(msg.Message, msg.Type())
+	sm.Host.Broadcast(msg)
 }
 
 func (sm *SortingManager) Add(item int) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
+	log.Println("Adding item:", item)
 	if len(sm.Items) > 0 {
 		if item < sm.Items[0] {
 			sm.SendCornerChange("left", item)
@@ -70,6 +73,8 @@ func (sm *SortingManager) Add(item int) {
 		sm.SendCornerChange("left", item)
 		sm.SendCornerChange("right", item)
 	}
+
+	log.Printf("Adding item: %d. Local items before: %v", item, sm.Items)
 	sm.Items = append(sm.Items, item)
 	sort.Ints(sm.Items)
 }
@@ -92,7 +97,9 @@ func (sm *SortingManager) SendCornerChange(direction string, item int) {
 		Item:     item,
 		SenderID: int64(sm.ID),
 	}
-	sm.Host.Broadcast(msg, msg.Type())
+
+	log.Printf("Sending corner item change: item %d, direction %s, from %d", item, direction, sm.ID)
+	sm.Host.Broadcast(msg)
 }
 
 func (sm *SortingManager) OrderItemsExchange(offeredItem, wantedItem int, neighbourID int, transactionID string) {
@@ -168,7 +175,7 @@ func (sm *SortingManager) ProcessMessage(msg messages.MessageInterface) {
 		if sm.ID < int(m.ID) {
 			sm.ID = int(m.ID)
 		}
-		sm.Host.Broadcast(messages.NewAnnounceSelfMessage(int64(sm.ID), serializers.MultiaddrJSON{Multiaddr: ma.StringCast(sm.Host.GetListenAddress())}).Message, messages.AnnounceSelf)
+		sm.Host.Broadcast(messages.NewAnnounceSelfMessage(int64(sm.ID), serializers.MultiaddrJSON{Multiaddr: ma.StringCast(sm.Host.GetListenAddress())}))
 		// Log the current participating nodes
 		log.Printf("Participating nodes updated: %v", sm.ParticipatingNodes)
 		// Notify that self has been announced
@@ -219,8 +226,8 @@ func (sm *SortingManager) ProcessCornerItemChange(msg messages.CornerItemChangeM
 
 func (sm *SortingManager) Activate(knownParticipant string) {
 	if knownParticipant == "" {
+		log.Println("No known participant provided. Activating SortingManager with ID 0.")
 		sm.ID = 0
-		sm.ParticipatingNodes[sm.ID] = sm.Host.GetListenAddress()
 		log.Printf("Activated SortingManager with ID %d and no known participants", sm.ID)
 		if sm.Host == nil {
 			log.Println("Host is not set. Cannot announce self.")
@@ -258,7 +265,7 @@ func (sm *SortingManager) Activate(knownParticipant string) {
 		}
 		msg := messages.NewAnnounceSelfMessage(int64(sm.ID), serializers.MultiaddrJSON{Multiaddr: addr})
 		log.Printf("Announcing self with ID %d at address %s", sm.ID, addrStr)
-		sm.Host.Broadcast(msg.Message, msg.Type())
+		sm.Host.Broadcast(msg)
 	}
 }
 
@@ -295,5 +302,3 @@ func (sm *SortingManager) GetParticipatingNodes() map[int]string {
 	}
 	return nodesCopy
 }
-
-

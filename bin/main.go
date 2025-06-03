@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"strconv"
@@ -30,7 +31,7 @@ func main() {
 		}
 	}
 
-	h, err := networking.NewLibp2pHost(0, messageHandler)
+	h, err := networking.NewLibp2pHost(8000, messageHandler)
 	if err != nil {
 		fmt.Println("Failed to create libp2p host:", err)
 		return
@@ -46,6 +47,7 @@ func main() {
 		}
 	}
 
+	sortingManager.SetHost(h)
 	sortingManager.Activate(targetAddr.String())
 	if err := h.Start(ctx); err != nil {
 		fmt.Println("Failed to start host:", err)
@@ -58,8 +60,11 @@ func main() {
 	// Populate with 10 random items
 	r := rand.New(rand.NewSource(0))
 	for i := 0; i < 10; i++ {
+		log.Println("Adding item:", r.Intn(100))
 		sortingManager.Add(r.Intn(100))
 	}
+
+	log.Println("Initial items:", sortingManager.GetItems())
 
 	// CLI
 	scanner := bufio.NewScanner(os.Stdin)
@@ -83,6 +88,11 @@ func main() {
 					sortingManager.Remove(num)
 				}
 			}
+		} else if strings.EqualFold(line, "exit") || strings.EqualFold(line, "quit") {
+			fmt.Println("Exiting...")
+			break
+		} else {
+			fmt.Println("Unknown command:", line)
 		}
 	}
 }
