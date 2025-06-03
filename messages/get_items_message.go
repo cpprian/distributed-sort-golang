@@ -4,19 +4,20 @@ import (
 	"github.com/google/uuid"
 )
 
-type GetItemsMessage[T any] struct {
+type GetItemsMessage struct {
 	Message
-	Items []T `json:"items"`
+	Items    []int `json:"items"`
+	SenderID int64 `json:"senderId,omitempty"`
 }
 
-func NewGetItemsMessage[T any]() GetItemsMessage[T] {
-	return GetItemsMessage[T]{
+func NewGetItemsMessage() GetItemsMessage {
+	return GetItemsMessage{
 		Message: NewMessage(GetItems),
 	}
 }
 
-func NewGetItemsMessageWithID[T any](items []T, txID uuid.UUID) GetItemsMessage[T] {
-	return GetItemsMessage[T]{
+func NewGetItemsMessageWithID(items []int, txID uuid.UUID) GetItemsMessage {
+	return GetItemsMessage{
 		Message: Message{
 			MessageType:   GetItems,
 			TransactionID: txID,

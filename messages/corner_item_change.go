@@ -1,17 +1,33 @@
 package messages
 
-type CornerItemChangeMessage[T any] struct {
+import "strconv"
+
+type CornerItemChangeMessage struct {
 	Message
-	Item     T     `json:"item"`
-	SenderID int64 `json:"senderId"`
+	Item      int    `json:"item"`
+	SenderID  int64  `json:"senderId"`
+	Direction string `json:"direction,omitempty"` // Optional field for direction, if needed
 }
 
-func NewCornerItemChangeMessage[T any](item T, senderID int64) CornerItemChangeMessage[T] {
-	return CornerItemChangeMessage[T]{
+func NewCornerItemChangeMessage(item int, senderID int64, direction string) CornerItemChangeMessage {
+	return CornerItemChangeMessage{
 		Message: Message{
 			MessageType: CornerItemChange,
 		},
-		Item:     item,
-		SenderID: senderID,
+		Item:      item,
+		SenderID:  senderID,
+		Direction: direction,
 	}
+}
+
+func (m CornerItemChangeMessage) String() string {
+	return "CornerItemChangeMessage{" +
+		"Item: " + strconv.Itoa(m.Item) +
+		", SenderID: " + strconv.FormatInt(m.SenderID, 10) +
+		", Direction: " + m.Direction +
+		"}"
+}
+
+func (m CornerItemChangeMessage) Type() MessageType {
+	return m.MessageType
 }

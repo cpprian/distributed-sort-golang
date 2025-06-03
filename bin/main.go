@@ -5,20 +5,15 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"math/rand"
 	"os"
 	"strconv"
 	"strings"
 
-	libp2p "github.com/libp2p/go-libp2p"
 	// "github.com/libp2p/go-libp2p-core/host"
 	// "github.com/libp2p/go-libp2p-core/peer"
 	// "github.com/libp2p/go-libp2p-core/peerstore"
-	ma "github.com/multiformats/go-multiaddr"
-	noise "github.com/libp2p/go-libp2p-noise"
-	mplex "github.com/libp2p/go-libp2p-mplex"
 
-	"github.com/cpprian/distributed-sort-golang"
+	distributed_sort "github.com/cpprian/distributed-sort-golang"
 	ms "github.com/cpprian/distributed-sort-golang/messages"
 	serial "github.com/cpprian/distributed-sort-golang/serializers"
 )
@@ -37,7 +32,7 @@ func main() {
 		}
 
 		switch messageType {
-		case ms.AnnounceSelfMessageType:
+		case ms.AnnounceSelf:
 			var announceMsg ms.AnnounceSelfMessage
 			if err := serial.Unmarshal(msg, &announceMsg); err != nil {
 				log.Printf("Error unmarshalling AnnounceSelfMessage: %v", err)

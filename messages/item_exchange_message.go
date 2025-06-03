@@ -4,15 +4,16 @@ import (
 	"github.com/google/uuid"
 )
 
-type ItemExchangeMessage[T any] struct {
+type ItemExchangeMessage struct {
 	Message
-	OfferedItem T    `json:"offeredItem"`
-	WantedItem  T    `json:"wantedItem"`
+	OfferedItem int   `json:"offeredItem"`
+	WantedItem  int   `json:"wantedItem"`
 	SenderID    int64 `json:"senderId"`
+	Response    bool  `json:"response,omitempty"`
 }
 
-func NewItemExchangeMessage[T any](offered, wanted T, senderID int64) ItemExchangeMessage[T] {
-	return ItemExchangeMessage[T]{
+func NewItemExchangeMessage(offered, wanted int, senderID int64) ItemExchangeMessage {
+	return ItemExchangeMessage{
 		Message:     NewMessage(ItemExchange),
 		OfferedItem: offered,
 		WantedItem:  wanted,
@@ -20,8 +21,8 @@ func NewItemExchangeMessage[T any](offered, wanted T, senderID int64) ItemExchan
 	}
 }
 
-func NewItemExchangeMessageWithID[T any](offered, wanted T, id uuid.UUID, senderID int64) ItemExchangeMessage[T] {
-	return ItemExchangeMessage[T]{
+func NewItemExchangeMessageWithID(offered, wanted int, id uuid.UUID, senderID int64) ItemExchangeMessage {
+	return ItemExchangeMessage{
 		Message:     Message{MessageType: ItemExchange, TransactionID: id},
 		OfferedItem: offered,
 		WantedItem:  wanted,

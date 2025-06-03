@@ -1,13 +1,14 @@
 package messages
 
 import (
-	"github.com/google/uuid"
 	"github.com/cpprian/distributed-sort-golang/neighbour"
+	"github.com/google/uuid"
 )
 
 type NodesListResponseMessage struct {
 	Message
 	ParticipatingNodes map[int64]neighbour.Neighbour `json:"participatingNodes"`
+	SenderID           int64                         `json:"sender_id"`
 }
 
 func NewNodesListResponseMessage(nodes map[int64]neighbour.Neighbour) NodesListResponseMessage {
@@ -22,4 +23,8 @@ func NewNodesListResponseMessageWithID(nodes map[int64]neighbour.Neighbour, txID
 		Message:            Message{MessageType: NodesListResponse, TransactionID: txID},
 		ParticipatingNodes: nodes,
 	}
+}
+
+func (m NodesListResponseMessage) Type() MessageType {
+	return NodesListResponse
 }
