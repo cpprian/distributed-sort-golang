@@ -9,8 +9,8 @@ import (
 	"os"
 	"strings"
 
-	mplex "github.com/cpprian/distributed-sort-golang/go-libp2p/p2p/muxer/mplex"
 	hostlib "github.com/libp2p/go-libp2p"
+	mplex "github.com/libp2p/go-libp2p-mplex"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	noise "github.com/libp2p/go-libp2p/p2p/security/noise"
 	ma "github.com/multiformats/go-multiaddr"
@@ -207,9 +207,7 @@ func (l *Libp2pHost) GetPeerInfo() map[string][]string {
 
 func (l *Libp2pHost) Addrs() []ma.Multiaddr {
 	addrs := make([]ma.Multiaddr, 0, len(l.host.Addrs()))
-	for _, addr := range l.host.Addrs() {
-		addrs = append(addrs, addr)
-	}
+	addrs = append(addrs, l.host.Addrs()...)
 	return addrs
 }
 
