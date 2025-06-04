@@ -6,8 +6,8 @@ import (
 
 type GetItemsMessage struct {
 	Message
-	Items    []int `json:"items"`
-	SenderID int64 `json:"senderId,omitempty"`
+	Items    []int64 `json:"items"`
+	SenderID int64   `json:"senderId,omitempty"`
 }
 
 func NewGetItemsMessage() GetItemsMessage {
@@ -16,7 +16,7 @@ func NewGetItemsMessage() GetItemsMessage {
 	}
 }
 
-func NewGetItemsMessageWithID(items []int, txID uuid.UUID) GetItemsMessage {
+func NewGetItemsMessageWithID(items []int64, txID uuid.UUID) GetItemsMessage {
 	return GetItemsMessage{
 		Message: Message{
 			MessageType:   GetItems,

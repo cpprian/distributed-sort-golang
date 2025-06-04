@@ -1,18 +1,23 @@
 package messages
 
-import "strconv"
+import (
+	"strconv"
+
+	"github.com/google/uuid"
+)
 
 type CornerItemChangeMessage struct {
 	Message
-	Item      int    `json:"item"`
+	Item      int64    `json:"item"`
 	SenderID  int64  `json:"senderId"`
 	Direction string `json:"direction,omitempty"` // Optional field for direction, if needed
 }
 
-func NewCornerItemChangeMessage(item int, senderID int64, direction string) CornerItemChangeMessage {
+func NewCornerItemChangeMessage(item int64, senderID int64, direction string) CornerItemChangeMessage {
 	return CornerItemChangeMessage{
 		Message: Message{
 			MessageType: CornerItemChange,
+			TransactionID: uuid.New(),
 		},
 		Item:      item,
 		SenderID:  senderID,
@@ -22,7 +27,7 @@ func NewCornerItemChangeMessage(item int, senderID int64, direction string) Corn
 
 func (m CornerItemChangeMessage) String() string {
 	return "CornerItemChangeMessage{" +
-		"Item: " + strconv.Itoa(m.Item) +
+		"Item: " + strconv.FormatInt(m.Item, 10) +
 		", SenderID: " + strconv.FormatInt(m.SenderID, 10) +
 		", Direction: " + m.Direction +
 		"}"

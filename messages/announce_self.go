@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/cpprian/distributed-sort-golang/serializers"
+	"github.com/google/uuid"
 )
 
 type AnnounceSelfMessage struct {
@@ -16,6 +17,7 @@ func NewAnnounceSelfMessage(id int64, addr serializers.MultiaddrJSON) AnnounceSe
 	return AnnounceSelfMessage{
 		Message: Message{
 			MessageType: AnnounceSelf,
+			TransactionID: uuid.New(),
 		},
 		ID:               id,
 		ListeningAddress: addr,

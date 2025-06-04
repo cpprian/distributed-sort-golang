@@ -5,9 +5,7 @@ go 1.23.6
 require (
 	github.com/google/uuid v1.6.0
 	github.com/libp2p/go-libp2p v0.41.1
-	github.com/libp2p/go-libp2p-core v0.20.1 // indirect
 	github.com/libp2p/go-libp2p-mplex v0.10.0
-	github.com/libp2p/go-libp2p-noise v0.5.0
 	github.com/multiformats/go-multiaddr v0.15.0
 )
 
@@ -109,5 +107,5 @@ require (
 	golang.org/x/text v0.22.0 // indirect
 	golang.org/x/tools v0.30.0 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
-	lukechampine.com/blake3 v1.4.0 // indirect
+	lukechampine.com/blake3 v1.4.1 // indirect
 )

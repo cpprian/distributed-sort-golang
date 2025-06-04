@@ -17,6 +17,7 @@ import (
 
 	host "github.com/libp2p/go-libp2p/core/host"
 	network "github.com/libp2p/go-libp2p/core/network"
+	peer "github.com/libp2p/go-libp2p/core/peer"
 	protocol "github.com/libp2p/go-libp2p/core/protocol"
 
 	"github.com/cpprian/distributed-sort-golang/messages"
@@ -32,7 +33,7 @@ type Libp2pHost struct {
 	msgProcessor func(map[string]interface{})
 }
 
-func NewLibp2pHost(port int, msgProcessor func(map[string]interface{})) (*Libp2pHost, error) {
+func NewLibp2pHost(port int64, msgProcessor func(map[string]interface{})) (*Libp2pHost, error) {
 	listenAddr, _ := ma.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port))
 
 	prvKey, _, err := crypto.GenerateEd25519Key(nil)
@@ -57,6 +58,18 @@ func NewLibp2pHost(port int, msgProcessor func(map[string]interface{})) (*Libp2p
 	}
 
 	h.SetStreamHandler(protocol.ID(ProtocolID), host.streamHandler)
+
+	addrInfo := peer.AddrInfo{
+		ID:    h.ID(),
+		Addrs: h.Addrs(),
+	}
+	fullAddrs, err := peer.AddrInfoToP2pAddrs(&addrInfo)
+	if err != nil || len(fullAddrs) == 0 {
+		return nil, fmt.Errorf("failed to build full multiaddr: %w", err)
+	}
+
+	fmt.Println("Your full multiaddr is:", fullAddrs[0].String())
+
 	return host, nil
 }
 
@@ -84,6 +97,7 @@ func (l *Libp2pHost) readData(s network.Stream) {
 			}
 			l.msgProcessor(msg)
 		}
+		log.Println("Received message:", line)
 	}
 }
 
@@ -106,17 +120,34 @@ func (l *Libp2pHost) Broadcast(message interface{}) {
 		return
 	}
 	fmt.Println("Broadcasting message:", string(encoded))
+	log.Println("Broadcast to peers: ", l.host.Network().Peers())
 	for _, peer := range l.host.Network().Peers() {
+		log.Println("Sending message to peer:", peer)	
+		// Create a new stream to the peer
 		stream, err := l.host.NewStream(context.Background(), peer, protocol.ID(ProtocolID))
 		if err != nil {
 			log.Println("Failed to create stream:", err)
 			continue
 		}
+		// defer stream.Close()
 		w := bufio.NewWriter(stream)
 		w.WriteString(string(encoded) + "\n")
 		w.Flush()
-		stream.Close()
 	}
+}
+
+func (l *Libp2pHost) Connect(ctx context.Context, targetAddr ma.Multiaddr) error {
+	peerInfo, err := peer.AddrInfoFromP2pAddr(targetAddr)
+	if err != nil {
+		return fmt.Errorf("failed to parse multiaddr: %w", err)
+	}
+
+	if err := l.host.Connect(ctx, *peerInfo); err != nil {
+		return fmt.Errorf("failed to connect to peer: %w", err)
+	}
+
+	log.Println("Connected to peer:", peerInfo.ID)
+	return nil
 }
 
 func (l *Libp2pHost) SendMessage(msg messages.MessageInterface) {
@@ -176,23 +207,14 @@ func (l *Libp2pHost) GetHost() host.Host {
 	return l.host
 }
 
-func (l *Libp2pHost) GetPeerID() string {
-	return l.host.ID().String()
+func (l *Libp2pHost) GetPeerID() peer.ID {
+	return l.host.ID()
 }
 
-func (l *Libp2pHost) GetPeerAddresses() []string {
-	addresses := make([]string, 0, len(l.host.Addrs()))
-	for _, addr := range l.host.Addrs() {
-		addresses = append(addresses, addr.String())
-	}
-	return addresses
-}
-
-func (l *Libp2pHost) GetPeerIDAndAddresses() map[string][]string {
-	peerInfo := make(map[string][]string)
-	peerID := l.GetPeerID()
-	peerInfo[peerID] = l.GetPeerAddresses()
-	return peerInfo
+func (l *Libp2pHost) GetAddrs() []ma.Multiaddr {
+	addrs := make([]ma.Multiaddr, 0, len(l.host.Addrs()))
+	addrs = append(addrs, l.host.Addrs()...)
+	return addrs
 }
 
 func (l *Libp2pHost) GetPeerInfo() map[string][]string {
@@ -216,3 +238,4 @@ func (l *Libp2pHost) Addrs() []ma.Multiaddr {
 func (l *Libp2pHost) ID() string {
 	return l.host.ID().String()
 }
+

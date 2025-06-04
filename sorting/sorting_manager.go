@@ -8,6 +8,7 @@ import (
 
 	"github.com/cpprian/distributed-sort-golang/messages"
 	"github.com/cpprian/distributed-sort-golang/serializers"
+	"github.com/libp2p/go-libp2p/core/peer"
 
 	ma "github.com/multiformats/go-multiaddr"
 )
@@ -17,32 +18,53 @@ type HostInterface interface {
 	GetListenAddress() string
 	Broadcast(interface{})
 	SendMessage(msg messages.MessageInterface)
+	GetPeerID() peer.ID
+	GetAddrs() []ma.Multiaddr
 }
 type SortingManager struct {
-	ID                 int
-	Items              []int
-	ParticipatingNodes map[int]string // Maps node ID to address
+	ID                 int64
+	Items              []int64
+	ParticipatingNodes map[int64]string // Maps node ID to address
 	Host               HostInterface
 	mu                 sync.Mutex
 }
 
 func NewSortingManager() *SortingManager {
+	id := int64(0)
+
+	log.Printf("Creating SortingManager with ID: %d", id)
+
 	return &SortingManager{
-		ID:                 0,
-		Items:              []int{},
-		ParticipatingNodes: make(map[int]string),
+		ID:                 id,
+		Items:              []int64{},
+		ParticipatingNodes: make(map[int64]string),
 		Host:               nil,
 		mu:                 sync.Mutex{},
 	}
 }
 
 func (sm *SortingManager) SetHost(host HostInterface) {
+	sm.mu.Lock()
 	sm.Host = host
-	go sm.AnnounceSelf()
+	sm.mu.Unlock()
 }
 
 func (sm *SortingManager) AnnounceSelf() {
-	addrStr := sm.Host.GetListenAddress()
+	log.Println("Announcing self with ID:", sm.ID)
+
+	addrInfo := peer.AddrInfo{
+		ID:    sm.Host.GetPeerID(),
+		Addrs: sm.Host.GetAddrs(),
+	}
+
+	addrs, err := peer.AddrInfoToP2pAddrs(&addrInfo)
+	if err != nil || len(addrs) == 0 {
+		log.Println("Could not get proper full multiaddr:", err)
+		return
+	}
+
+	addrStr := addrs[0].String()
+	log.Printf("Announcing self with ID %d at address %s", sm.ID, addrStr)
 
 	addr, err := ma.NewMultiaddr(addrStr)
 	if err != nil {
@@ -50,14 +72,11 @@ func (sm *SortingManager) AnnounceSelf() {
 		return
 	}
 
-	msg := messages.NewAnnounceSelfMessage(int64(sm.ID), serializers.MultiaddrJSON{Multiaddr: addr})
-	log.Printf("Announcing self with ID %d at address %s", sm.ID, addrStr)
-
-	// Broadcast the message to all nodes
+	msg := messages.NewAnnounceSelfMessage(sm.ID, serializers.MultiaddrJSON{Multiaddr: addr})
 	sm.Host.Broadcast(msg)
 }
 
-func (sm *SortingManager) Add(item int) {
+func (sm *SortingManager) Add(item int64) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -76,10 +95,17 @@ func (sm *SortingManager) Add(item int) {
 
 	log.Printf("Adding item: %d. Local items before: %v", item, sm.Items)
 	sm.Items = append(sm.Items, item)
-	sort.Ints(sm.Items)
+	intItems := make([]int, len(sm.Items))
+	for i, v := range sm.Items {
+		intItems[i] = int(v)
+	}
+	sort.Ints(intItems)
+	for i, v := range intItems {
+		sm.Items[i] = int64(v)
+	}
 }
 
-func (sm *SortingManager) Remove(item int) {
+func (sm *SortingManager) Remove(item int64) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -92,17 +118,13 @@ func (sm *SortingManager) Remove(item int) {
 	}
 }
 
-func (sm *SortingManager) SendCornerChange(direction string, item int) {
-	msg := messages.CornerItemChangeMessage{
-		Item:     item,
-		SenderID: int64(sm.ID),
-	}
-
+func (sm *SortingManager) SendCornerChange(direction string, item int64) {
 	log.Printf("Sending corner item change: item %d, direction %s, from %d", item, direction, sm.ID)
+	msg := messages.NewCornerItemChangeMessage(item, int64(sm.ID), direction)
 	sm.Host.Broadcast(msg)
 }
 
-func (sm *SortingManager) OrderItemsExchange(offeredItem, wantedItem int, neighbourID int, transactionID string) {
+func (sm *SortingManager) OrderItemsExchange(offeredItem, wantedItem int64, neighbourID int64, transactionID string) {
 	msg := messages.ItemExchangeMessage{
 		OfferedItem: offeredItem,
 		WantedItem:  wantedItem,
@@ -121,8 +143,8 @@ func (sm *SortingManager) RespondToItemsExchange(msg messages.ItemExchangeMessag
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	var itemToSend int
-	if senderID > int64(sm.ID) {
+	var itemToSend int64
+	if senderID > sm.ID {
 		if len(sm.Items) == 0 || sm.Items[len(sm.Items)-1] != wantedItem {
 			sm.Host.SendMessage(messages.NewErrorMessage(transactionID))
 			return
@@ -137,9 +159,20 @@ func (sm *SortingManager) RespondToItemsExchange(msg messages.ItemExchangeMessag
 		itemToSend = sm.Items[0]
 		sm.Items[0] = offeredItem
 	}
-	sort.Ints(sm.Items)
+	intItems := make([]int, len(sm.Items))
+	for i, v := range sm.Items {
+		intItems[i] = int(v)
+	}
+	sort.Ints(intItems)
+	for i, v := range intItems {
+		sm.Items[i] = int64(v)
+	}
 
 	response := messages.ItemExchangeMessage{
+		Message: messages.Message{
+			MessageType:   messages.ItemExchange,
+			TransactionID: transactionID,
+		},
 		OfferedItem: itemToSend,
 		WantedItem:  wantedItem,
 		SenderID:    int64(sm.ID),
@@ -160,20 +193,27 @@ func (sm *SortingManager) ProcessMessage(msg messages.MessageInterface) {
 			if m.SenderID > int64(sm.ID) {
 				sm.Items = append(sm.Items, m.OfferedItem)
 			} else {
-				sm.Items = append([]int{m.OfferedItem}, sm.Items...)
+				sm.Items = append([]int64{m.OfferedItem}, sm.Items...)
 			}
-			sort.Ints(sm.Items)
+			intItems := make([]int, len(sm.Items))
+			for i, v := range sm.Items {
+				intItems[i] = int(v)
+			}
+			sort.Ints(intItems)
+			for i, v := range intItems {
+				sm.Items[i] = int64(v)
+			}
 			sm.mu.Unlock()
 		} else {
 			sm.RespondToItemsExchange(m)
 		}
 	case messages.AnnounceSelf:
 		m := msg.(messages.AnnounceSelfMessage)
-		sm.ParticipatingNodes[int(m.ID)] = m.ListeningAddress.String()
+		sm.ParticipatingNodes[m.ID] = m.ListeningAddress.String()
 		sm.mu.Lock()
 		defer sm.mu.Unlock()
-		if sm.ID < int(m.ID) {
-			sm.ID = int(m.ID)
+		if sm.ID < m.ID {
+			sm.ID = m.ID
 		}
 		sm.Host.Broadcast(messages.NewAnnounceSelfMessage(int64(sm.ID), serializers.MultiaddrJSON{Multiaddr: ma.StringCast(sm.Host.GetListenAddress())}))
 		// Log the current participating nodes
@@ -196,8 +236,8 @@ func (sm *SortingManager) ProcessMessage(msg messages.MessageInterface) {
 		sm.mu.Lock()
 		defer sm.mu.Unlock()
 		for id, addr := range m.Nodes {
-			if _, exists := sm.ParticipatingNodes[id]; !exists {
-				sm.ParticipatingNodes[id] = addr
+			if _, exists := sm.ParticipatingNodes[int64(id)]; !exists {
+				sm.ParticipatingNodes[int64(id)] = addr
 			}
 		}
 		log.Printf("Updated participating nodes: %v", sm.ParticipatingNodes)
@@ -207,8 +247,8 @@ func (sm *SortingManager) ProcessMessage(msg messages.MessageInterface) {
 		sm.mu.Lock()
 		defer sm.mu.Unlock()
 		for id, addr := range m.ParticipatingNodes {
-			if _, exists := sm.ParticipatingNodes[int(id)]; !exists {
-				sm.ParticipatingNodes[int(id)] = addr.String()	
+			if _, exists := sm.ParticipatingNodes[id]; !exists {
+				sm.ParticipatingNodes[id] = addr.String()
 			}
 		}
 		log.Printf("Updated participating nodes from response: %v", sm.ParticipatingNodes)
@@ -226,8 +266,6 @@ func (sm *SortingManager) ProcessCornerItemChange(msg messages.CornerItemChangeM
 
 func (sm *SortingManager) Activate(knownParticipant string) {
 	if knownParticipant == "" {
-		log.Println("No known participant provided. Activating SortingManager with ID 0.")
-		sm.ID = 0
 		log.Printf("Activated SortingManager with ID %d and no known participants", sm.ID)
 		if sm.Host == nil {
 			log.Println("Host is not set. Cannot announce self.")
@@ -247,8 +285,9 @@ func (sm *SortingManager) Activate(knownParticipant string) {
 			return
 		}
 
-		sm.ID = maxKey(sm.ParticipatingNodes) + 1
 		sm.ParticipatingNodes[sm.ID] = m.String()
+		log.Println("All known participants:", len(sm.ParticipatingNodes))
+		sm.ID = maxKey(sm.ParticipatingNodes) + 1
 		log.Printf("Activated SortingManager with ID %d and known participant %s", sm.ID, knownParticipant)
 
 		if sm.Host == nil {
@@ -269,8 +308,8 @@ func (sm *SortingManager) Activate(knownParticipant string) {
 	}
 }
 
-func maxKey(m map[int]string) int {
-	max := -1
+func maxKey(m map[int64]string) int64 {
+	var max int64 = -1
 	for k := range m {
 		if k > max {
 			max = k
@@ -279,26 +318,26 @@ func maxKey(m map[int]string) int {
 	return max
 }
 
-func (sm *SortingManager) GetItems() []int {
+func (sm *SortingManager) GetItems() []int64 {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	return sm.Items
 }
 
-func (sm *SortingManager) GetAllItems() []int {
+func (sm *SortingManager) GetAllItems() []int64 {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	itemsCopy := make([]int, len(sm.Items))
+	itemsCopy := make([]int64, len(sm.Items))
 	copy(itemsCopy, sm.Items)
 	return itemsCopy
 }
 
-func (sm *SortingManager) GetParticipatingNodes() map[int]string {
+func (sm *SortingManager) GetParticipatingNodes() map[int64]string {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	nodesCopy := make(map[int]string)
+	nodesCopy := make(map[int64]string)
 	for k, v := range sm.ParticipatingNodes {
-		nodesCopy[k] = v
+		nodesCopy[int64(k)] = v
 	}
 	return nodesCopy
 }

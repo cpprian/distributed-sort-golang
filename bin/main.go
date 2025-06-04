@@ -23,32 +23,42 @@ func main() {
 	// Create SortingManager
 	sortingManager := sorting.NewSortingManager()
 
-	// Create Libp2p host
-	// Wrapper function to adapt the signature
 	messageHandler := func(data map[string]interface{}) {
 		if msg, ok := data["message"].(messages.MessageInterface); ok {
 			sortingManager.ProcessMessage(msg)
 		}
 	}
 
-	h, err := networking.NewLibp2pHost(8000, messageHandler)
+	h, err := networking.NewLibp2pHost(0, messageHandler)
 	if err != nil {
 		fmt.Println("Failed to create libp2p host:", err)
 		return
 	}
 
-	// Connect to peer if multiaddr provided
-	var targetAddr multiaddr.Multiaddr
+	var connectedPeers []multiaddr.Multiaddr
 	if len(os.Args) > 1 {
-		targetAddr, err = multiaddr.NewMultiaddr(os.Args[1])
-		if err != nil {
-			fmt.Println("Invalid multiaddress:", err)
-			return
+		for _, addrStr := range os.Args[1:] {
+			targetAddr, err := multiaddr.NewMultiaddr(addrStr)
+			if err != nil {
+				fmt.Printf("Invalid multiaddress: %s, error: %v\n", addrStr, err)
+				continue
+			}
+			log.Println("Connecting to peer:", targetAddr)
+			if err := h.Connect(ctx, targetAddr); err != nil {
+				fmt.Printf("Failed to connect to peer %s: %v\n", addrStr, err)
+				continue
+			}
+			connectedPeers = append(connectedPeers, targetAddr)
 		}
 	}
+	log.Println("Connected peers:", connectedPeers)
 
 	sortingManager.SetHost(h)
-	sortingManager.Activate(targetAddr.String())
+	sortingManager.AnnounceSelf()
+	for _, peerAddr := range connectedPeers {
+		log.Println("Activating peer:", peerAddr)
+		sortingManager.Activate(peerAddr.String())
+	}
 	if err := h.Start(ctx); err != nil {
 		fmt.Println("Failed to start host:", err)
 		return
@@ -57,11 +67,8 @@ func main() {
 	// Output node details
 	fmt.Println("Activated node:", h.Addrs(), h.ID())
 
-	// Populate with 10 random items
-	r := rand.New(rand.NewSource(0))
-	for i := 0; i < 10; i++ {
-		log.Println("Adding item:", r.Intn(100))
-		sortingManager.Add(r.Intn(100))
+	for range 3 {
+		sortingManager.Add(int64(rand.Intn(100)))
 	}
 
 	log.Println("Initial items:", sortingManager.GetItems())
@@ -78,14 +85,14 @@ func main() {
 			parts := strings.Split(line, " ")
 			if len(parts) == 2 {
 				if num, err := strconv.Atoi(parts[1]); err == nil {
-					sortingManager.Add(num)
+					sortingManager.Add(int64(num))
 				}
 			}
 		} else if strings.HasPrefix(strings.ToLower(line), "del ") {
 			parts := strings.Split(line, " ")
 			if len(parts) == 2 {
 				if num, err := strconv.Atoi(parts[1]); err == nil {
-					sortingManager.Remove(num)
+					sortingManager.Remove(int64(num))
 				}
 			}
 		} else if strings.EqualFold(line, "exit") || strings.EqualFold(line, "quit") {
