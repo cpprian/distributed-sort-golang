@@ -12,6 +12,8 @@ import (
 )
 
 func (sm *SortingManager) ProcessMessage(msg messages.MessageInterface) {
+	log.Println("Processing message:", msg)
+
 	switch msg.Type() {
 	case messages.CornerItemChange:
 		m := msg.(messages.CornerItemChangeMessage)

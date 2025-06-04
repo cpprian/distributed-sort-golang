@@ -18,11 +18,12 @@ import (
 )
 
 func main() {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background()) // Create a cancelable context
 
 	sortingManager := sorting.NewSortingManager()
 
 	messageHandler := func(data map[string]interface{}) {
+		log.Println("Received message:", data)
 		if msg, ok := data["message"].(messages.MessageInterface); ok {
 			sortingManager.ProcessMessage(msg)
 		}
@@ -94,6 +95,7 @@ func main() {
 				}
 			} else if strings.EqualFold(line, "exit") || strings.EqualFold(line, "quit") {
 				fmt.Println("Exiting...")
+				cancel()
 				break
 			} else {
 				fmt.Println("Unknown command:", line)
@@ -101,9 +103,9 @@ func main() {
 		}
 	}()
 
-	// Wait for the context to be done
+	// Wait for context to be done
 	<-ctx.Done()
-	h.Stop()
 	log.Println("Context done, stopping host...")
+	h.Stop()
 	log.Println("Shutting down...")
 }

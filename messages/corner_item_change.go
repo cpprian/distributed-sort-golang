@@ -8,7 +8,7 @@ import (
 
 type CornerItemChangeMessage struct {
 	Message
-	Item      int64    `json:"item"`
+	Item      int64  `json:"item"`
 	SenderID  int64  `json:"senderId"`
 	Direction string `json:"direction,omitempty"` // Optional field for direction, if needed
 }
@@ -16,7 +16,7 @@ type CornerItemChangeMessage struct {
 func NewCornerItemChangeMessage(item int64, senderID int64, direction string) CornerItemChangeMessage {
 	return CornerItemChangeMessage{
 		Message: Message{
-			MessageType: CornerItemChange,
+			MessageType:   CornerItemChange,
 			TransactionID: uuid.New(),
 		},
 		Item:      item,
