@@ -143,8 +143,11 @@ func (sm *SortingManager) RespondToItemsExchange(msg messages.ItemExchangeMessag
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
+	log.Printf("Responding to ItemExchange: offered %d, wanted %d, from %d", offeredItem, wantedItem, senderID)
+
 	var itemToSend int64
 	if senderID > sm.ID {
+		log.Println("Sender ID is greater than local ID, sending from the right end")
 		if len(sm.Items) == 0 || sm.Items[len(sm.Items)-1] != wantedItem {
 			sm.Host.SendMessage(messages.NewErrorMessage(transactionID))
 			return
@@ -152,6 +155,7 @@ func (sm *SortingManager) RespondToItemsExchange(msg messages.ItemExchangeMessag
 		itemToSend = sm.Items[len(sm.Items)-1]
 		sm.Items[len(sm.Items)-1] = offeredItem
 	} else {
+		log.Println("Sender ID is less than or equal to local ID, sending from the left end")
 		if len(sm.Items) == 0 || sm.Items[0] != wantedItem {
 			sm.Host.SendMessage(messages.NewErrorMessage(transactionID))
 			return
@@ -177,7 +181,9 @@ func (sm *SortingManager) RespondToItemsExchange(msg messages.ItemExchangeMessag
 		WantedItem:  wantedItem,
 		SenderID:    int64(sm.ID),
 	}
-	sm.Host.SendMessage(response.Message)
+
+	log.Printf("Sending ItemExchange response: offered %d, wanted %d, to %d", itemToSend, wantedItem, senderID)
+	sm.Host.SendMessage(response)
 }
 
 func (sm *SortingManager) ProcessMessage(msg messages.MessageInterface) {
@@ -260,7 +266,10 @@ func (sm *SortingManager) ProcessMessage(msg messages.MessageInterface) {
 func (sm *SortingManager) ProcessCornerItemChange(msg messages.CornerItemChangeMessage) {
 	fmt.Printf("Processing CornerItemChange: item %d, direction %s, from %d\n",
 		msg.Item, msg.Direction, msg.SenderID)
-	confirm := messages.ConfirmMessage{TransactionID: msg.TransactionID}
+	confirm := messages.ConfirmMessage{
+		TransactionID: msg.TransactionID,
+		SenderID:      int64(sm.ID),
+	}
 	sm.Host.SendMessage(confirm)
 }
 

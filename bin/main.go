@@ -20,7 +20,6 @@ import (
 func main() {
 	ctx := context.Background()
 
-	// Create SortingManager
 	sortingManager := sorting.NewSortingManager()
 
 	messageHandler := func(data map[string]interface{}) {
@@ -59,12 +58,9 @@ func main() {
 		log.Println("Activating peer:", peerAddr)
 		sortingManager.Activate(peerAddr.String())
 	}
-	if err := h.Start(ctx); err != nil {
-		fmt.Println("Failed to start host:", err)
-		return
-	}
 
-	// Output node details
+	go h.Start(ctx)
+
 	fmt.Println("Activated node:", h.Addrs(), h.ID())
 
 	for range 3 {
@@ -73,33 +69,41 @@ func main() {
 
 	log.Println("Initial items:", sortingManager.GetItems())
 
-	// CLI
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.EqualFold(line, "allitems") {
-			fmt.Println(sortingManager.GetAllItems())
-		} else if strings.EqualFold(line, "items") {
-			fmt.Println(sortingManager.GetItems())
-		} else if strings.HasPrefix(strings.ToLower(line), "add ") {
-			parts := strings.Split(line, " ")
-			if len(parts) == 2 {
-				if num, err := strconv.Atoi(parts[1]); err == nil {
-					sortingManager.Add(int64(num))
+	go func() {
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			line := scanner.Text()
+			log.Println("Received command:", line)
+			if strings.EqualFold(line, "allitems") {
+				fmt.Println(sortingManager.GetAllItems())
+			} else if strings.EqualFold(line, "items") {
+				fmt.Println(sortingManager.GetItems())
+			} else if strings.HasPrefix(strings.ToLower(line), "add ") {
+				parts := strings.Split(line, " ")
+				if len(parts) == 2 {
+					if num, err := strconv.Atoi(parts[1]); err == nil {
+						sortingManager.Add(int64(num))
+					}
 				}
-			}
-		} else if strings.HasPrefix(strings.ToLower(line), "del ") {
-			parts := strings.Split(line, " ")
-			if len(parts) == 2 {
-				if num, err := strconv.Atoi(parts[1]); err == nil {
-					sortingManager.Remove(int64(num))
+			} else if strings.HasPrefix(strings.ToLower(line), "del ") {
+				parts := strings.Split(line, " ")
+				if len(parts) == 2 {
+					if num, err := strconv.Atoi(parts[1]); err == nil {
+						sortingManager.Remove(int64(num))
+					}
 				}
+			} else if strings.EqualFold(line, "exit") || strings.EqualFold(line, "quit") {
+				fmt.Println("Exiting...")
+				break
+			} else {
+				fmt.Println("Unknown command:", line)
 			}
-		} else if strings.EqualFold(line, "exit") || strings.EqualFold(line, "quit") {
-			fmt.Println("Exiting...")
-			break
-		} else {
-			fmt.Println("Unknown command:", line)
 		}
-	}
+	}()
+
+	// Wait for the context to be done
+	<-ctx.Done()
+	h.Stop()
+	log.Println("Context done, stopping host...")
+	log.Println("Shutting down...")
 }

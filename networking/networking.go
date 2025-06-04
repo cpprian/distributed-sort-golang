@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 
 	hostlib "github.com/libp2p/go-libp2p"
@@ -31,6 +30,7 @@ type Libp2pHost struct {
 	host         host.Host
 	listenAddr   ma.Multiaddr
 	msgProcessor func(map[string]interface{})
+	outgoing     chan string
 }
 
 func NewLibp2pHost(port int64, msgProcessor func(map[string]interface{})) (*Libp2pHost, error) {
@@ -55,6 +55,7 @@ func NewLibp2pHost(port int64, msgProcessor func(map[string]interface{})) (*Libp
 		host:         h,
 		listenAddr:   listenAddr,
 		msgProcessor: msgProcessor,
+		outgoing:     make(chan string, 100),
 	}
 
 	h.SetStreamHandler(protocol.ID(ProtocolID), host.streamHandler)
@@ -84,32 +85,33 @@ func (l *Libp2pHost) readData(s network.Stream) {
 	for {
 		line, err := r.ReadString('\n')
 		if err != nil {
-			log.Println("Read error:", err)
+			log.Println("Error reading from stream:", err)
+			s.Close()
 			return
 		}
 		line = strings.TrimSpace(line)
-		if line != "" {
-			var msg map[string]interface{}
-			err := json.Unmarshal([]byte(line), &msg)
-			if err != nil {
-				log.Println("JSON decode error:", err)
-				continue
-			}
-			l.msgProcessor(msg)
+		if line == "" {
+			continue
 		}
 		log.Println("Received message:", line)
+
+		var msg map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+			log.Println("Failed to decode message:", err)
+			continue
+		}
+
+		if l.msgProcessor != nil {
+			l.msgProcessor(msg)
+		}
 	}
 }
 
 func (l *Libp2pHost) writeData(s network.Stream) {
-	scanner := bufio.NewScanner(os.Stdin)
 	w := bufio.NewWriter(s)
-	for scanner.Scan() {
-		text := scanner.Text()
-		if text != "" {
-			w.WriteString(text + "\n")
-			w.Flush()
-		}
+	for msg := range l.outgoing {
+		w.WriteString(msg + "\n")
+		w.Flush()
 	}
 }
 
