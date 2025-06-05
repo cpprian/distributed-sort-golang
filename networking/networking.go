@@ -124,14 +124,13 @@ func (l *Libp2pHost) Broadcast(message interface{}) {
 	fmt.Println("Broadcasting message:", string(encoded))
 	log.Println("Broadcast to peers: ", l.host.Network().Peers())
 	for _, peer := range l.host.Network().Peers() {
-		log.Println("Sending message to peer:", peer)	
-		// Create a new stream to the peer
+		log.Println("Sending message to peer:", peer)
+
 		stream, err := l.host.NewStream(context.Background(), peer, protocol.ID(ProtocolID))
 		if err != nil {
 			log.Println("Failed to create stream:", err)
 			continue
 		}
-		// defer stream.Close()
 		w := bufio.NewWriter(stream)
 		w.WriteString(string(encoded) + "\n")
 		w.Flush()
@@ -173,4 +172,3 @@ func (l *Libp2pHost) SendMessage(msg messages.MessageInterface) {
 	}
 	log.Println("Message sent to all peers")
 }
-

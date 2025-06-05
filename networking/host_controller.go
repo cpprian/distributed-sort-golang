@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/libp2p/go-libp2p/core/peer"
 	host "github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 )
 

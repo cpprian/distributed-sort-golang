@@ -21,6 +21,7 @@ type HostInterface interface {
 	GetPeerID() peer.ID
 	GetAddrs() []ma.Multiaddr
 }
+
 type SortingManager struct {
 	ID                 int64
 	Items              []int64
@@ -185,8 +186,6 @@ func (sm *SortingManager) RespondToItemsExchange(msg messages.ItemExchangeMessag
 	log.Printf("Sending ItemExchange response: offered %d, wanted %d, to %d", itemToSend, wantedItem, senderID)
 	sm.Host.SendMessage(response)
 }
-
-
 
 func (sm *SortingManager) ProcessCornerItemChange(msg messages.CornerItemChangeMessage) {
 	fmt.Printf("Processing CornerItemChange: item %d, direction %s, from %d\n",

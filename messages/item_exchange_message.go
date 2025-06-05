@@ -6,8 +6,8 @@ import (
 
 type ItemExchangeMessage struct {
 	Message
-	OfferedItem int64   `json:"offeredItem"`
-	WantedItem  int64   `json:"wantedItem"`
+	OfferedItem int64 `json:"offeredItem"`
+	WantedItem  int64 `json:"wantedItem"`
 	SenderID    int64 `json:"senderId"`
 	Response    bool  `json:"response,omitempty"`
 }

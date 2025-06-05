@@ -16,7 +16,7 @@ type AnnounceSelfMessage struct {
 func NewAnnounceSelfMessage(id int64, addr serializers.MultiaddrJSON) AnnounceSelfMessage {
 	return AnnounceSelfMessage{
 		Message: Message{
-			MessageType: AnnounceSelf,
+			MessageType:   AnnounceSelf,
 			TransactionID: uuid.New(),
 		},
 		ID:               id,

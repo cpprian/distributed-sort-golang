@@ -24,9 +24,24 @@ func main() {
 
 	messageHandler := func(data map[string]interface{}) {
 		log.Println("Received message:", data)
-		if msg, ok := data["message"].(messages.MessageInterface); ok {
-			sortingManager.ProcessMessage(msg)
+		rawType, ok := data["messageType"].(string)
+		if !ok {
+			log.Println("Invalid messageType (not string):", data["messageType"])
+			return
 		}
+
+		msgType := messages.MessageType(rawType)
+		log.Println("Message type:", msgType)
+
+		var msg messages.MessageInterface
+		msg, err := messages.DeserializeMessage(data, msgType)
+		if err != nil {
+			log.Println("Failed to deserialize message:", err)
+			return
+		}
+		log.Println("Deserialized message:", msg)
+		sortingManager.ProcessMessage(msg)
+		log.Println("Processed message:", msg)
 	}
 
 	h, err := networking.NewLibp2pHost(0, messageHandler)
