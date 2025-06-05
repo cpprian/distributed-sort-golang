@@ -4,7 +4,6 @@ import "github.com/google/uuid"
 
 type ConfirmMessage struct {
 	Message
-	TransactionID uuid.UUID `json:"transactionId"`
 	SenderID      int64     `json:"senderId,omitempty"`
 }
 
@@ -14,7 +13,17 @@ func NewConfirmMessage(txID uuid.UUID, senderID int64) ConfirmMessage {
 			MessageType:   Confirm,
 			TransactionID: txID,
 		},
-		TransactionID: txID,
 		SenderID:      senderID,
 	}
+}
+
+func (m ConfirmMessage) String() string {
+	return "ConfirmMessage{" +
+		"TransactionID: " + m.TransactionID.String() +
+		", SenderID: " + string(m.SenderID) +
+		"}"
+}
+
+func (m ConfirmMessage) Type() MessageType {
+	return m.MessageType
 }

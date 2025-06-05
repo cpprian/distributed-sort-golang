@@ -49,9 +49,6 @@ func (sm *SortingManager) ProcessMessage(msg messages.MessageInterface) {
 			sm.ID = m.ID
 		}
 		sm.Host.Broadcast(messages.NewAnnounceSelfMessage(int64(sm.ID), serializers.MultiaddrJSON{Multiaddr: ma.StringCast(sm.Host.GetListenAddress())}))
-		// Log the current participating nodes
-		log.Printf("Participating nodes updated: %v", sm.ParticipatingNodes)
-		// Notify that self has been announced
 		fmt.Println("AnnounceSelf received. Nodes now:", sm.ParticipatingNodes)
 	case messages.GetItems:
 		m := msg.(messages.GetItemsMessage)

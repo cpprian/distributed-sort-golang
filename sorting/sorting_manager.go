@@ -83,10 +83,10 @@ func (sm *SortingManager) Add(item int64) {
 
 	log.Println("Adding item:", item)
 	if len(sm.Items) > 0 {
-		if item < sm.Items[0] {
+		if item > sm.Items[0] {
 			sm.SendCornerChange("left", item)
 		}
-		if item > sm.Items[len(sm.Items)-1] {
+		if item < sm.Items[len(sm.Items)-1] {
 			sm.SendCornerChange("right", item)
 		}
 	} else {
@@ -100,7 +100,7 @@ func (sm *SortingManager) Add(item int64) {
 	for i, v := range sm.Items {
 		intItems[i] = int(v)
 	}
-	sort.Ints(intItems)
+	sort.Sort(sort.Reverse(sort.IntSlice(intItems)))
 	for i, v := range intItems {
 		sm.Items[i] = int64(v)
 	}
@@ -131,7 +131,6 @@ func (sm *SortingManager) OrderItemsExchange(offeredItem, wantedItem int64, neig
 		WantedItem:  wantedItem,
 		SenderID:    int64(sm.ID),
 	}
-	sm.Remove(offeredItem)
 	sm.Host.SendMessage(msg)
 }
 
@@ -168,7 +167,7 @@ func (sm *SortingManager) RespondToItemsExchange(msg messages.ItemExchangeMessag
 	for i, v := range sm.Items {
 		intItems[i] = int(v)
 	}
-	sort.Ints(intItems)
+	sort.Sort(sort.Reverse(sort.IntSlice(intItems)))
 	for i, v := range intItems {
 		sm.Items[i] = int64(v)
 	}
@@ -190,10 +189,44 @@ func (sm *SortingManager) RespondToItemsExchange(msg messages.ItemExchangeMessag
 func (sm *SortingManager) ProcessCornerItemChange(msg messages.CornerItemChangeMessage) {
 	fmt.Printf("Processing CornerItemChange: item %d, direction %s, from %d\n",
 		msg.Item, msg.Direction, msg.SenderID)
-	confirm := messages.ConfirmMessage{
-		TransactionID: msg.TransactionID,
-		SenderID:      int64(sm.ID),
+
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	if msg.Direction != "left" && msg.Direction != "right" {
+		log.Printf("Invalid direction %s in CornerItemChange from %d", msg.Direction, msg.SenderID)
+		sm.Host.SendMessage(messages.NewErrorMessage(msg.TransactionID))
+		return
 	}
+	if msg.Direction == "left" {
+		if len(sm.Items) == 0 || msg.Item < sm.Items[0] {
+			log.Printf("Adding item %d to the left end from %d", msg.Item, msg.SenderID)
+			sm.Items = append([]int64{msg.Item}, sm.Items...)
+		} else {
+			log.Printf("Item %d is not less than the left end %d, ignoring", msg.Item, sm.Items[0])
+			sm.Host.SendMessage(messages.NewErrorMessage(msg.TransactionID))
+			return
+		}
+	} else if msg.Direction == "right" {
+		if len(sm.Items) == 0 || msg.Item > sm.Items[len(sm.Items)-1] {
+			log.Printf("Adding item %d to the right end from %d", msg.Item, msg.SenderID)
+			sm.Items = append(sm.Items, msg.Item)
+		} else {
+			log.Printf("Item %d is not greater than the right end %d, ignoring", msg.Item, sm.Items[len(sm.Items)-1])
+			sm.Host.SendMessage(messages.NewErrorMessage(msg.TransactionID))
+			return
+		}
+	}
+	
+	confirm := messages.ConfirmMessage{
+		Message: messages.Message{
+			MessageType:   messages.Confirm,
+			TransactionID: msg.TransactionID,
+		},
+		SenderID:      int64(msg.SenderID),
+	}
+
+	log.Printf("Sending confirmation for CornerItemChange: item %d, direction %s, from %d",
+		msg.Item, msg.Direction, msg.SenderID)
 	sm.Host.SendMessage(confirm)
 }
 
