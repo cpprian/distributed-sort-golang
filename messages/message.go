@@ -101,12 +101,6 @@ func DeserializeMessage(data map[string]interface{}, msgType MessageType) (Messa
 			Direction: data["direction"].(string),
 		}
 	case ItemExchange:
-		tranID, err := uuid.Parse(data["transactionId"].(string))
-		if err != nil {
-			log.Println("Failed to parse transaction ID:", err)
-			return nil, fmt.Errorf("failed to parse transaction ID: %w", err)
-		}
-
 		msg = ItemExchangeMessage{
 			Message: Message{
 				MessageType:   msgType,
@@ -114,7 +108,7 @@ func DeserializeMessage(data map[string]interface{}, msgType MessageType) (Messa
 			},
 			OfferedItem: int64(data["offeredItem"].(float64)),
 			WantedItem:  int64(data["wantedItem"].(float64)),
-			SenderID:    data["senderId"].(int64),
+			SenderID:    int64(data["senderId"].(float64)),
 		}
 	case NodesList:
 		nodes := make(map[int64]string)
