@@ -41,7 +41,6 @@ func main() {
 		}
 		log.Println("Deserialized message:", msg)
 		sortingManager.ProcessMessage(msg)
-		log.Println("Processed message:", msg)
 	}
 
 	h, err := networking.NewLibp2pHost(0, messageHandler)
@@ -75,7 +74,7 @@ func main() {
 		sortingManager.Activate(peerAddr.String())
 	}
 
-	go h.Start(ctx)
+	h.Start(ctx)
 
 	fmt.Println("Activated node:", h.Addrs(), h.ID())
 

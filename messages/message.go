@@ -88,6 +88,10 @@ func DeserializeMessage(data map[string]interface{}, msgType MessageType) (Messa
 		log.Println("Failed to parse transaction ID:", err)
 		return nil, fmt.Errorf("failed to parse transaction ID: %w", err)
 	}
+	if len(tranID) == 0 {
+		log.Println("Empty transaction ID")
+		return nil, fmt.Errorf("failed to parse - empty transaction id")
+	}
 
 	switch msgType {
 	case CornerItemChange:
