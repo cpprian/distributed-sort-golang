@@ -5,23 +5,20 @@ import (
 )
 
 type GetItemsMessage struct {
-	Message
-	Items    []int64 `json:"items"`
-	SenderID int64   `json:"senderId,omitempty"`
+	BaseMessage
+	Items []int64 `json:"items"`
 }
 
 func NewGetItemsMessage() GetItemsMessage {
 	return GetItemsMessage{
-		Message: NewMessage(GetItems),
+		BaseMessage: NewBaseMessage(GetItems),
+		Items:       []int64{},
 	}
 }
 
-func NewGetItemsMessageWithID(items []int64, txID uuid.UUID) GetItemsMessage {
+func NewGetItemsMessageWithTransactionID(items []int64, transactionID uuid.UUID) GetItemsMessage {
 	return GetItemsMessage{
-		Message: Message{
-			MessageType:   GetItems,
-			TransactionID: txID,
-		},
-		Items: items,
+		BaseMessage: NewBaseMessageWithTransactionID(GetItems, transactionID),
+		Items:       items,
 	}
 }

@@ -5,24 +5,25 @@ import (
 )
 
 type ItemExchangeMessage struct {
-	BaseMessage
+	Message
 	OfferedItem int64 `json:"offeredItem"`
 	WantedItem  int64 `json:"wantedItem"`
 	SenderID    int64 `json:"senderId"`
+	Response    bool  `json:"response,omitempty"`
 }
 
 func NewItemExchangeMessage(offered, wanted int64, senderID int64) ItemExchangeMessage {
 	return ItemExchangeMessage{
-		BaseMessage: NewBaseMessage(ItemExchange),
+		Message:     NewMessage(ItemExchange),
 		OfferedItem: offered,
 		WantedItem:  wanted,
 		SenderID:    senderID,
 	}
 }
 
-func NewItemExchangeMessageWithID(offered, wanted int64, transactionID uuid.UUID, senderID int64) ItemExchangeMessage {
+func NewItemExchangeMessageWithID(offered, wanted int64, id uuid.UUID, senderID int64) ItemExchangeMessage {
 	return ItemExchangeMessage{
-		BaseMessage: NewBaseMessageWithTransactionID(ItemExchange, transactionID),
+		Message:     Message{MessageType: ItemExchange, TransactionID: id},
 		OfferedItem: offered,
 		WantedItem:  wanted,
 		SenderID:    senderID,
