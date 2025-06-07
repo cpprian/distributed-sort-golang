@@ -1,13 +1,13 @@
 package sorting
 
 import (
-	"fmt"
 	"log"
 	"sort"
 	"sync"
 
 	"github.com/cpprian/distributed-sort-golang/messages"
 	"github.com/cpprian/distributed-sort-golang/serializers"
+	"github.com/google/uuid"
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	ma "github.com/multiformats/go-multiaddr"
@@ -83,10 +83,10 @@ func (sm *SortingManager) Add(item int64) {
 
 	log.Println("Adding item:", item)
 	if len(sm.Items) > 0 {
-		if item > sm.Items[0] {
+		if item < sm.Items[0] {
 			sm.SendCornerChange("left", item)
 		}
-		if item < sm.Items[len(sm.Items)-1] {
+		if item > sm.Items[len(sm.Items)-1] {
 			sm.SendCornerChange("right", item)
 		}
 	} else {
@@ -110,13 +110,15 @@ func (sm *SortingManager) Remove(item int64) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
+	log.Println("Removing item:", item)
 	for i, v := range sm.Items {
 		if v == item {
 			sm.Items = append(sm.Items[:i], sm.Items[i+1:]...)
-			log.Printf("Item removed. Local items: %v", sm.Items)
+			log.Printf("Removed item: %d. Local items after: %v", item, sm.Items)
 			return
 		}
 	}
+	log.Printf("Item %d not found in local items: %v", item, sm.Items)
 }
 
 func (sm *SortingManager) SendCornerChange(direction string, item int64) {
@@ -125,43 +127,43 @@ func (sm *SortingManager) SendCornerChange(direction string, item int64) {
 	sm.Host.Broadcast(msg)
 }
 
-func (sm *SortingManager) OrderItemsExchange(offeredItem, wantedItem int64, neighbourID int64, transactionID string) {
-	msg := messages.ItemExchangeMessage{
-		OfferedItem: offeredItem,
-		WantedItem:  wantedItem,
-		SenderID:    int64(sm.ID),
+func contains(slice []int64, item int64) bool {
+	for _, v := range slice {
+		if v == item {
+			return true
+		}
 	}
-	sm.Host.SendMessage(msg)
+	return false
 }
 
-func (sm *SortingManager) RespondToItemsExchange(msg messages.ItemExchangeMessage) {
-	transactionID := msg.TransactionID
-	senderID := msg.SenderID
-	wantedItem := msg.WantedItem
-	offeredItem := msg.OfferedItem
+func (sm *SortingManager) OrderItemsExchange(offeredItem, wantedItem int64, neighbourID int64, transactionID uuid.UUID) {
+	log.Printf("Ordering items exchange: offered %d, wanted %d, neighbour ID %d, transaction ID %s", offeredItem, wantedItem, neighbourID, transactionID)
+
+	msg := messages.ItemExchangeMessage{
+		Message: messages.Message{
+			MessageType:   messages.ItemExchange,
+			TransactionID: transactionID,
+		},
+		OfferedItem:  offeredItem,
+		WantedItem:   wantedItem,
+		SenderID:     int64(sm.ID),
+		Response:     false,
+	}
+
+	sm.Host.SendMessage(msg)
 
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	log.Printf("Responding to ItemExchange: offered %d, wanted %d, from %d", offeredItem, wantedItem, senderID)
+	if !contains(sm.Items, offeredItem) {
+		log.Printf("Offered item %d not found in local items: %v", offeredItem, sm.Items)
+		return
+	}
 
-	var itemToSend int64
-	if senderID > sm.ID {
-		log.Println("Sender ID is greater than local ID, sending from the right end")
-		if len(sm.Items) == 0 || sm.Items[len(sm.Items)-1] != wantedItem {
-			sm.Host.SendMessage(messages.NewErrorMessage(transactionID))
-			return
-		}
-		itemToSend = sm.Items[len(sm.Items)-1]
-		sm.Items[len(sm.Items)-1] = offeredItem
+	if neighbourID > sm.ID {
+		sm.Items = append(sm.Items, offeredItem)
 	} else {
-		log.Println("Sender ID is less than or equal to local ID, sending from the left end")
-		if len(sm.Items) == 0 || sm.Items[0] != wantedItem {
-			sm.Host.SendMessage(messages.NewErrorMessage(transactionID))
-			return
-		}
-		itemToSend = sm.Items[0]
-		sm.Items[0] = offeredItem
+		sm.Items = append([]int64{offeredItem}, sm.Items...)
 	}
 	intItems := make([]int, len(sm.Items))
 	for i, v := range sm.Items {
@@ -171,63 +173,81 @@ func (sm *SortingManager) RespondToItemsExchange(msg messages.ItemExchangeMessag
 	for i, v := range intItems {
 		sm.Items[i] = int64(v)
 	}
-
-	response := messages.ItemExchangeMessage{
-		Message: messages.Message{
-			MessageType:   messages.ItemExchange,
-			TransactionID: transactionID,
-		},
-		OfferedItem: itemToSend,
-		WantedItem:  wantedItem,
-		SenderID:    int64(sm.ID),
-	}
-
-	log.Printf("Sending ItemExchange response: offered %d, wanted %d, to %d", itemToSend, wantedItem, senderID)
-	sm.Host.SendMessage(response)
 }
 
-func (sm *SortingManager) ProcessCornerItemChange(msg messages.CornerItemChangeMessage) {
-	fmt.Printf("Processing CornerItemChange: item %d, direction %s, from %d\n",
-		msg.Item, msg.Direction, msg.SenderID)
+func (sm *SortingManager) RespondToItemsExchange(msg messages.ItemExchangeMessage) {
+	log.Printf("Responding to items exchange: offered %d, wanted %d, sender ID %d, transaction ID %s", msg.OfferedItem, msg.WantedItem, msg.SenderID, msg.TransactionID)
 
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	if msg.Direction != "left" && msg.Direction != "right" {
-		log.Printf("Invalid direction %s in CornerItemChange from %d", msg.Direction, msg.SenderID)
+
+	if !contains(sm.Items, msg.WantedItem) {
+		log.Printf("Wanted item %d not found in local items: %v", msg.WantedItem, sm.Items)
 		sm.Host.SendMessage(messages.NewErrorMessage(msg.TransactionID))
 		return
 	}
-	if msg.Direction == "left" {
-		if len(sm.Items) == 0 || msg.Item < sm.Items[0] {
-			log.Printf("Adding item %d to the left end from %d", msg.Item, msg.SenderID)
-			sm.Items = append([]int64{msg.Item}, sm.Items...)
-		} else {
-			log.Printf("Item %d is not less than the left end %d, ignoring", msg.Item, sm.Items[0])
+
+	var itemToSend int64
+	if msg.SenderID > int64(sm.ID) {
+		itemToSend = sm.Items[len(sm.Items)-1]
+		if itemToSend != msg.WantedItem {
+			log.Printf("Error: offered item %d does not match wanted item %d", itemToSend, msg.WantedItem)
 			sm.Host.SendMessage(messages.NewErrorMessage(msg.TransactionID))
 			return
 		}
-	} else if msg.Direction == "right" {
-		if len(sm.Items) == 0 || msg.Item > sm.Items[len(sm.Items)-1] {
-			log.Printf("Adding item %d to the right end from %d", msg.Item, msg.SenderID)
-			sm.Items = append(sm.Items, msg.Item)
-		} else {
-			log.Printf("Item %d is not greater than the right end %d, ignoring", msg.Item, sm.Items[len(sm.Items)-1])
+		sm.Items[len(sm.Items)-1] = msg.OfferedItem
+	} else {
+		itemToSend = sm.Items[0]
+		if itemToSend != msg.WantedItem {
+			log.Printf("Error: offered item %d does not match wanted item %d", itemToSend, msg.WantedItem)
 			sm.Host.SendMessage(messages.NewErrorMessage(msg.TransactionID))
 			return
 		}
-	}
-	
-	confirm := messages.ConfirmMessage{
-		Message: messages.Message{
-			MessageType:   messages.Confirm,
-			TransactionID: msg.TransactionID,
-		},
-		SenderID:      int64(msg.SenderID),
+		sm.Items[0] = msg.OfferedItem
 	}
 
-	log.Printf("Sending confirmation for CornerItemChange: item %d, direction %s, from %d",
-		msg.Item, msg.Direction, msg.SenderID)
-	sm.Host.SendMessage(confirm)
+	intItems := make([]int, len(sm.Items))
+	for i, v := range sm.Items {
+		intItems[i] = int(v)
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(intItems)))
+	for i, v := range intItems {
+		sm.Items[i] = int64(v)
+	}
+
+	responseMsg := messages.ItemExchangeMessage{
+		Message: messages.Message{
+			MessageType:   messages.ItemExchange,
+			TransactionID: msg.TransactionID,
+		},
+		OfferedItem: itemToSend,
+		WantedItem:  msg.WantedItem,
+		SenderID:    int64(sm.ID),
+		Response:    true,
+	}
+
+	sm.Host.SendMessage(responseMsg)
+	log.Printf("Sent response with offered item %d for transaction ID %s", itemToSend, msg.TransactionID)
+}
+
+func (sm *SortingManager) ProcessCornerItemChange(msg messages.CornerItemChangeMessage) {
+	log.Printf("Processing CornerItemChange: item %d, direction %s, from %d", msg.Item, msg.Direction, msg.SenderID)
+
+	if msg.SenderID > sm.ID {
+		if len(sm.Items) == 0 || sm.Items[len(sm.Items)-1] < msg.Item {
+			sm.OrderItemsExchange(sm.Items[len(sm.Items)-1], msg.Item, msg.SenderID, msg.TransactionID)
+		} else {
+			log.Println("No corner item change needed for right end")
+			sm.Host.SendMessage(messages.NewConfirmMessage(msg.TransactionID, msg.SenderID))
+		}
+	} else {
+		if len(sm.Items) == 0 || sm.Items[0] > msg.Item {
+			sm.OrderItemsExchange(sm.Items[0], msg.Item, msg.SenderID, msg.TransactionID)
+		} else {
+			log.Println("No corner item change needed for left end")
+			sm.Host.SendMessage(messages.NewConfirmMessage(msg.TransactionID, msg.SenderID))
+		}
+	}
 }
 
 func (sm *SortingManager) Activate(knownParticipant string) {
@@ -239,10 +259,6 @@ func (sm *SortingManager) Activate(knownParticipant string) {
 		}
 		sm.AnnounceSelf()
 	} else {
-		// If a known participant is provided, set the ID to the maximum existing ID + 1
-		// and add the known participant to the ParticipatingNodes map.
-		// This is a simplified example; in a real scenario, you would fetch the existing nodes
-		// and determine the ID based on the maximum existing node ID.
 		sm.mu.Lock()
 		defer sm.mu.Unlock()
 		m, err := ma.NewMultiaddr(knownParticipant)
