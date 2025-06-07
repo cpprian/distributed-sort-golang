@@ -12,6 +12,27 @@ func (sm *SortingManager) ProcessMessage(msg messages.MessageInterface) {
 	case messages.CornerItemChange:
 		m := msg.(messages.CornerItemChangeMessage)
 		sm.ProcessCornerItemChange(m)
+	case messages.ItemExchange:
+		m := msg.(messages.ItemExchangeMessage)
+		if m.SenderID == sm.ID {
+			log.Printf("Received ItemExchange from self, ignoring: %v", m)
+			return
+		}
+		if m.Response {
+			log.Printf("Received ItemExchange response: %v", m)
+			if m.OfferedItem == m.WantedItem {
+				log.Printf("Item exchange successful: offered %d, wanted %d", m.OfferedItem, m.WantedItem)
+				sm.Items = sm.Items[:len(sm.Items)-1] // Remove the last item
+				sm.Items = append(sm.Items, m.OfferedItem) // Add the offered item
+				log.Printf("Updated items after exchange: %v", sm.Items)
+			} else {
+				log.Printf("Item exchange failed: offered %d does not match wanted %d", m.OfferedItem, m.WantedItem)
+				sm.Host.SendMessage(messages.NewErrorMessage(m.TransactionID))
+			}
+		} else {
+			log.Printf("Received ItemExchange request: %v", m)
+			sm.RespondToItemsExchange(m)
+		}
 	case messages.AnnounceSelf:
 		m := msg.(messages.AnnounceSelfMessage)
 		sm.mu.Lock()
