@@ -1,6 +1,7 @@
 package networks
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 
 	"github.com/cpprian/distributed-sort-golang/messages"
@@ -39,7 +41,10 @@ func NewMessagingProtocol(processor UnknownMessageProcessor) *MessagingProtocol 
 }
 
 func (mp *MessagingProtocol) HandleStream(s network.Stream) {
+	log.Println("Handling new stream for MessagingProtocol...")
 	controller := NewMessagingInitiator(mp.processor, s)
+	mp.initiator = controller
+	log.Println("New stream received, starting MessagingInitiator...")
 	go controller.Run()
 }
 
@@ -207,7 +212,7 @@ func (mp *MessagingProtocol) GetProtocolID() protocol.ID {
 	if mp.initiator != nil {
 		return mp.initiator.GetProtocolID()
 	}
-	return ""
+	return ProtocolID
 }
 
 func (mp *MessagingProtocol) GetRemoteAddress() ma.Multiaddr {
@@ -217,9 +222,73 @@ func (mp *MessagingProtocol) GetRemoteAddress() ma.Multiaddr {
 	return nil
 }
 
-func (mp *MessagingProtocol) RetrieveParticipatingNodes(host host.Host, knownParticipant ma.Multiaddr, protocolID protocol.ID, processor UnknownMessageProcessor) (map[int64]neighbours.Neighbour, error) {
-	if mp.initiator != nil {
-		return mp.initiator.RetrieveParticipatingNodes(host, knownParticipant, protocolID, processor)
+func (mp *MessagingProtocol) RetrieveParticipatingNodes(
+	host host.Host,
+	knownParticipant ma.Multiaddr,
+	protocolID protocol.ID,
+	processor UnknownMessageProcessor,
+) (map[int64]neighbours.Neighbour, error) {
+	initiator, err := mp.Dial(host, knownParticipant)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial known participant: %w", err)
 	}
-	return nil, fmt.Errorf("no initiator set")
+
+	msg := messages.NewNodesListMessage()
+	future := initiator.SendMessage(msg)
+
+	select {
+	case responseMsg := <-future:
+		response, ok := responseMsg.(messages.NodesListResponseMessage)
+		if !ok {
+			return nil, fmt.Errorf("unexpected message type: %T", responseMsg)
+		}
+		return response.GetParticipatingNodes(), nil
+	case <-time.After(3 * time.Second):
+		return nil, fmt.Errorf("timeout waiting for nodes list response")
+	}
+}
+
+func (mp *MessagingProtocol) Dial(host host.Host, addr ma.Multiaddr) (*MessagingInitiator, error) {
+	peerInfo, err := peer.AddrInfoFromP2pAddr(addr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid multiaddr (can't parse peer info): %w", err)
+	}
+
+	log.Printf("Dialing peer %s at %v\n", peerInfo.ID, peerInfo.Addrs)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := host.Connect(ctx, *peerInfo); err != nil {
+		return nil, fmt.Errorf("failed to connect to peer %s: %w", peerInfo.ID, err)
+	}
+
+	var stream network.Stream
+	for i := 1; i <= 3; i++ {
+		time.Sleep(time.Duration(i) * time.Second)
+
+		supported, err := host.Peerstore().SupportsProtocols(peerInfo.ID, mp.GetProtocolID())
+		if err != nil {
+			log.Printf("[Attempt %d] Could not determine supported protocols yet: %v", i, err)
+		} else {
+			log.Printf("[Attempt %d] Peer %s supports: %v", i, peerInfo.ID, supported)
+		}
+
+		stream, err = host.NewStream(context.Background(), peerInfo.ID, mp.GetProtocolID())
+		if err == nil {
+			log.Printf("Successfully opened stream on attempt %d", i)
+			break
+		} else {
+			log.Printf("[Attempt %d] Failed to open stream: %v", i, err)
+		}
+	}
+
+	if stream == nil {
+		return nil, fmt.Errorf("failed to open stream after retries")
+	}
+
+	initiator := NewMessagingInitiator(mp.processor, stream)
+	go initiator.Run()
+
+	return initiator, nil
 }

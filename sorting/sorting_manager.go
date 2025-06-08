@@ -17,7 +17,7 @@ type SortingManager struct {
 	ID                 int64
 	Items              []int64
 	ParticipatingNodes map[int64]neighbours.Neighbour
-	Host               networks.Libp2pHost
+	Host               *networks.Libp2pHost
 	Self               *neighbours.Neighbour
 	Messaging          networks.MessagingController
 	mu                 sync.Mutex
@@ -28,35 +28,34 @@ func NewSortingManager() *SortingManager {
 		ID:                 0,
 		Items:              []int64{},
 		ParticipatingNodes: make(map[int64]neighbours.Neighbour),
-		Host:               *networks.NewEmptyLibp2pHost(),
+		Host:               networks.NewEmptyLibp2pHost(),
 		Self:               nil,
 		Messaging:          nil,
 		mu:                 sync.Mutex{},
 	}
 }
 
-func (sm *SortingManager) SetHost(host networks.Libp2pHost) {
+func (sm *SortingManager) SetHost(host *networks.Libp2pHost) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	sm.Host = host
 	sm.Self = neighbours.NewNeighbour(host.Host.Network().ListenAddresses()[0], 0)
-	log.Printf("Host set with address: %s and ID: %d\n", sm.Self.Multiaddr.String(), sm.Self.ID)
+	log.Printf("Host set with address: %s and ID: %d\n", sm.Host.Host.Network().ListenAddresses()[0], sm.Self.ID)
 }
 
 func (sm *SortingManager) SetMessagingController(messaging networks.MessagingController) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	sm.Messaging = messaging
-	log.Printf("Messaging controller set with protocol ID: %s\n", sm.Messaging.GetProtocolID())
 }
 
 func (sm *SortingManager) Activate(knownParticipant ma.Multiaddr) {
 	log.Println("Activating SortingManager...")
-	sm.ParticipatingNodes[sm.Self.ID] = *sm.Self
-	sm.Self.ID = sm.ID
-
 	if knownParticipant == nil {
-		log.Printf("No known participant. Setting self ID to %d and address to %s\n", sm.Self.ID, sm.Self.Multiaddr.String())
+		log.Println("No known participant. Setting self ID = 0")
+		sm.ID = 0
+		sm.Self.ID = 0
+		sm.ParticipatingNodes[0] = *sm.Self
 	} else {
 		log.Println("Retrieving participating nodes from known participant:", knownParticipant)
 		nodes, err := sm.Messaging.RetrieveParticipatingNodes(sm.Host.Host, knownParticipant, sm.Messaging.GetProtocolID(), sm.Messaging.GetMessageProcessor())
@@ -67,8 +66,10 @@ func (sm *SortingManager) Activate(knownParticipant ma.Multiaddr) {
 
 		sm.ParticipatingNodes = nodes
 		sm.ID = utils.MaxKey(nodes) + 1
-		log.Printf("Setting self ID to %d and address to %s\n", sm.Self.ID, sm.Self.Multiaddr.String())
+		sm.Self.ID = sm.ID
+		sm.ParticipatingNodes[sm.ID] = *sm.Self
 
+		log.Printf("Setting self ID to %d and address to %s\n", sm.Self.ID, sm.Self.Multiaddr.String())
 		sm.AnnounceSelf()
 	}
 }

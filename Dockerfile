@@ -7,12 +7,18 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o edcs-go
+RUN CGO_ENABLED=0 GOOS=linux go build -o /bin/edcs-sort 
 
 FROM debian:bookworm-slim
 
-WORKDIR /app
+COPY --from=builder /bin/edcs-sort /usr/local/bin/edcs-sort
 
-COPY --from=builder /app/edcs .
+RUN apt-get update && \
+    apt-get install -y ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
-CMD ["./edcs-go"]
+ENTRYPOINT ["/usr/local/bin/edcs-sort"]
+
+EXPOSE 8080
+
+CMD ["./edcs-sort"]

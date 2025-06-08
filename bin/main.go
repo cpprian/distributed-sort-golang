@@ -21,13 +21,13 @@ func main() {
 	messaging := networks.NewMessagingProtocol(sortingManager.ProcessMessage)
 	sortingManager.SetMessagingController(messaging)
 
-	host, err := networks.NewLibp2pHost(*messaging)
+	host, err := networks.NewLibp2pHost(messaging)
 	if err != nil {
 		log.Fatalf("Failed to create libp2p host: %v", err)
 		return
 	}
 
-	sortingManager.SetHost(*host)
+	sortingManager.SetHost(host)
 	log.Println("Host set with address:", host.Host.Network().ListenAddresses()[0])
 
 	var targetAddr ma.Multiaddr

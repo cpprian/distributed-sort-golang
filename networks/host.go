@@ -28,9 +28,9 @@ func NewEmptyLibp2pHost() *Libp2pHost {
 	}
 }
 
-func NewLibp2pHost(messagingProtocol MessagingProtocol) (*Libp2pHost, error) {
+func NewLibp2pHost(messagingProtocol *MessagingProtocol) (*Libp2pHost, error) {
 	log.Println("Creating new Libp2pHost")
-	listenAddr, _ := ma.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", 0))
+	listenAddr, _ := ma.NewMultiaddr("/ip4/0.0.0.0/tcp/0")
 
 	prvKey, _, err := crypto.GenerateEd25519Key(nil)
 	if err != nil {
@@ -52,16 +52,16 @@ func NewLibp2pHost(messagingProtocol MessagingProtocol) (*Libp2pHost, error) {
 	}
 
 	h.SetStreamHandler(protocol.ID(ProtocolID), messagingProtocol.HandleStream)
+	log.Println("Handler set for protocol:", ProtocolID)
 
 	addrInfo := peer.AddrInfo{
-		ID:    h.ID(),
-		Addrs: h.Addrs(),
+		ID:    host.Host.ID(),
+		Addrs: host.Host.Addrs(),
 	}
 	fullAddrs, err := peer.AddrInfoToP2pAddrs(&addrInfo)
 	if err != nil || len(fullAddrs) == 0 {
-		return nil, fmt.Errorf("failed to build full multiaddr: %w", err)
+		log.Fatalf("Failed to convert to full multiaddr: %v", err)
 	}
-
-	fmt.Println("Full multiaddr:", fullAddrs[0].String())
+	log.Println("Host set with address:", fullAddrs[0].String())
 	return host, nil
 }
