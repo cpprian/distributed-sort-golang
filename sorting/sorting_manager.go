@@ -8,7 +8,7 @@ import (
 
 	"github.com/cpprian/distributed-sort-golang/messages"
 	"github.com/cpprian/distributed-sort-golang/neighbours"
-	"github.com/cpprian/distributed-sort-golang/networking"
+	"github.com/cpprian/distributed-sort-golang/networks"
 	"github.com/cpprian/distributed-sort-golang/utils"
 	ma "github.com/multiformats/go-multiaddr"
 )
@@ -17,22 +17,37 @@ type SortingManager struct {
 	ID                 int64
 	Items              []int64
 	ParticipatingNodes map[int64]neighbours.Neighbour
-	Host               networking.Libp2pHost
+	Host               networks.Libp2pHost
 	Self               *neighbours.Neighbour
-	Messaging          networking.MessagingController
+	Messaging          networks.MessagingController
 	mu                 sync.Mutex
 }
 
-func NewSortingManager(host networking.Libp2pHost, messagingController networking.MessagingController) *SortingManager {
+func NewSortingManager() *SortingManager {
 	return &SortingManager{
 		ID:                 0,
 		Items:              []int64{},
 		ParticipatingNodes: make(map[int64]neighbours.Neighbour),
-		Host:               host,
-		Self:               neighbours.NewNeighbour(host.Host.Network().ListenAddresses()[0], 0),
-		Messaging:          messagingController,
+		Host:               *networks.NewEmptyLibp2pHost(),
+		Self:               nil,
+		Messaging:          nil,
 		mu:                 sync.Mutex{},
 	}
+}
+
+func (sm *SortingManager) SetHost(host networks.Libp2pHost) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	sm.Host = host
+	sm.Self = neighbours.NewNeighbour(host.Host.Network().ListenAddresses()[0], 0)
+	log.Printf("Host set with address: %s and ID: %d\n", sm.Self.Multiaddr.String(), sm.Self.ID)
+}
+
+func (sm *SortingManager) SetMessagingController(messaging networks.MessagingController) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	sm.Messaging = messaging
+	log.Printf("Messaging controller set with protocol ID: %s\n", sm.Messaging.GetProtocolID())
 }
 
 func (sm *SortingManager) Activate(knownParticipant ma.Multiaddr) {
@@ -60,7 +75,7 @@ func (sm *SortingManager) Activate(knownParticipant ma.Multiaddr) {
 
 func (sm *SortingManager) AnnounceSelf() {
 	log.Println("Announcing self with ID: ", sm.ID)
-	
+
 	for id, neighbour := range sm.ParticipatingNodes {
 		if id == sm.ID {
 			continue
@@ -68,16 +83,16 @@ func (sm *SortingManager) AnnounceSelf() {
 
 		log.Println("Announcing self to neighbour: ", neighbour.Multiaddr.String())
 
-		controller, err := networking.DialByMultiaddr(sm.Host.Host, neighbour.Multiaddr, sm.Messaging.GetProtocolID(), sm.Messaging.GetMessageProcessor())
+		controller, err := networks.DialByMultiaddr(sm.Host.Host, neighbour.Multiaddr, sm.Messaging.GetProtocolID(), sm.Messaging.GetMessageProcessor())
 		if err != nil {
 			log.Printf("Failed to dial neighbour %s: %v", neighbour.Multiaddr.String(), err)
 			continue
 		}
 
 		msg := messages.NewAnnounceSelfMessage(sm.ID, sm.Self.Multiaddr)
-		go func(c networking.MessagingController, m messages.IMessage) {
+		go func(c networks.MessagingController, m messages.IMessage) {
 			defer c.Close()
-			
+
 			select {
 			case <-c.SendMessage(m):
 				log.Printf("Sent AnnounceSelf to %v\n", neighbour)
@@ -163,7 +178,7 @@ func (sm *SortingManager) GetAllItems() []int64 {
 		neighbour := sm.ParticipatingNodes[id]
 		log.Printf("Retrieving items from neighbour %d at %s\n", id, neighbour.Multiaddr.String())
 
-		controller, err := networking.DialByMultiaddr(sm.Host.Host, neighbour.Multiaddr, sm.Messaging.GetProtocolID(), sm.Messaging.GetMessageProcessor())
+		controller, err := networks.DialByMultiaddr(sm.Host.Host, neighbour.Multiaddr, sm.Messaging.GetProtocolID(), sm.Messaging.GetMessageProcessor())
 		if err != nil {
 			log.Printf("Failed to dial neighbour %s: %v", neighbour.Multiaddr.String(), err)
 			continue
@@ -190,11 +205,11 @@ func (sm *SortingManager) GetAllItems() []int64 {
 	return allItems
 }
 
-func (sm *SortingManager) ProcessMessage(msg messages.IMessage, controller networking.MessagingController) {
+func (sm *SortingManager) ProcessMessage(msg messages.IMessage, controller networks.MessagingController) {
 	log.Printf("Processing message of type %T from %s\n", msg, controller.GetRemoteAddress())
 
 	switch m := msg.(type) {
-	case messages.CornerItemChangeMessage: 
+	case messages.CornerItemChangeMessage:
 		log.Printf("Received CornerItemChangeMessage: %s", msg)
 		sm.ProcessCornerItemChange(m, controller)
 	case messages.NodesListMessage:
@@ -218,4 +233,10 @@ func (sm *SortingManager) ProcessMessage(msg messages.IMessage, controller netwo
 	}
 
 	log.Println("Message processed successfully.")
+}
+
+func (sm *SortingManager) GetItems() []int64 {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	return sm.Items
 }

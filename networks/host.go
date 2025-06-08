@@ -1,4 +1,4 @@
-package networking
+package networks
 
 import (
 	"fmt"
@@ -20,6 +20,12 @@ const (
 
 type Libp2pHost struct {
 	Host host.Host
+}
+
+func NewEmptyLibp2pHost() *Libp2pHost {
+	return &Libp2pHost{
+		Host: nil,
+	}
 }
 
 func NewLibp2pHost(messagingProtocol MessagingProtocol) (*Libp2pHost, error) {

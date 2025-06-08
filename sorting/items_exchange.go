@@ -7,7 +7,7 @@ import (
 
 	"github.com/cpprian/distributed-sort-golang/messages"
 	"github.com/cpprian/distributed-sort-golang/neighbours"
-	"github.com/cpprian/distributed-sort-golang/networking"
+	"github.com/cpprian/distributed-sort-golang/networks"
 	"github.com/cpprian/distributed-sort-golang/utils"
 	"github.com/google/uuid"
 )
@@ -46,7 +46,7 @@ func (sm *SortingManager) sendMessageOnCornerItemChange(neighbour *neighbours.Ne
 	msg := messages.NewCornerItemChangeMessage(item, sm.ID)
 
 	go func() {
-		controller, err := networking.DialByMultiaddr(sm.Host.Host, neighbour.Multiaddr, sm.Messaging.GetProtocolID(), sm.Messaging.GetMessageProcessor())
+		controller, err := networks.DialByMultiaddr(sm.Host.Host, neighbour.Multiaddr, sm.Messaging.GetProtocolID(), sm.Messaging.GetMessageProcessor())
 		if err != nil {
 			log.Printf("Failed to dial neighbour %s: %v", neighbour.Multiaddr.String(), err)
 			return
@@ -68,13 +68,13 @@ func (sm *SortingManager) sendMessageOnCornerItemChange(neighbour *neighbours.Ne
 	}()
 }
 
-func (sm *SortingManager) RespondToItemExchange(msg messages.ItemExchangeMessage, controller networking.MessagingController) {
+func (sm *SortingManager) RespondToItemExchange(msg messages.ItemExchangeMessage, controller networks.MessagingController) {
 	log.Printf("Responding to item exchange: %v", msg)
 
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	var itemToSend int64 
+	var itemToSend int64
 	senderID := msg.GetSenderID()
 
 	if senderID > sm.ID {
@@ -113,7 +113,7 @@ func (sm *SortingManager) RespondToItemExchange(msg messages.ItemExchangeMessage
 	controller.SendMessage(responseMsg)
 }
 
-func (sm *SortingManager) OrderItemsExchange(controller networking.MessagingController, offeredItem int64, wantedItem int64, neighbourId int64, transactionId uuid.UUID) {
+func (sm *SortingManager) OrderItemsExchange(controller networks.MessagingController, offeredItem int64, wantedItem int64, neighbourId int64, transactionId uuid.UUID) {
 	log.Printf("Ordering items exchange: offeredItem=%d, wantedItem=%d, neighbourId=%d, transactionId=%s", offeredItem, wantedItem, neighbourId, transactionId)
 
 	sm.mu.Lock()
@@ -134,7 +134,7 @@ func (sm *SortingManager) OrderItemsExchange(controller networking.MessagingCont
 
 	go func() {
 		respChan := controller.SendMessage(messages.NewItemExchangeMessageWithID(offeredItem, wantedItem, transactionId, sm.ID))
-		
+
 		select {
 		case msg := <-respChan:
 			reposnse, ok := msg.(messages.ItemExchangeMessage)
@@ -142,8 +142,8 @@ func (sm *SortingManager) OrderItemsExchange(controller networking.MessagingCont
 				log.Printf("Unexpected response type: %T", msg)
 				sm.mu.Lock()
 				sm.Items = append(sm.Items, offeredItem)
-				sort.Slice(sm.Items, func(i, j int) bool { 
-					return sm.Items[i] < sm.Items[j] 
+				sort.Slice(sm.Items, func(i, j int) bool {
+					return sm.Items[i] < sm.Items[j]
 				})
 				sm.mu.Unlock()
 				return
@@ -173,7 +173,7 @@ func (sm *SortingManager) OrderItemsExchange(controller networking.MessagingCont
 	}()
 }
 
-func (sm *SortingManager) ProcessCornerItemChange(msg messages.CornerItemChangeMessage, controller networking.MessagingController) {
+func (sm *SortingManager) ProcessCornerItemChange(msg messages.CornerItemChangeMessage, controller networks.MessagingController) {
 	log.Printf("Processing corner item change: %v\n", msg)
 
 	sm.mu.Lock()

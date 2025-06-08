@@ -13,7 +13,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 
 	"github.com/cpprian/distributed-sort-golang/messages"
-	"github.com/cpprian/distributed-sort-golang/networking"
+	"github.com/cpprian/distributed-sort-golang/networks"
 	"github.com/cpprian/distributed-sort-golang/sorting"
 )
 
@@ -43,7 +43,7 @@ func main() {
 		sortingManager.ProcessMessage(msg)
 	}
 
-	h, err := networking.NewLibp2pHost(0, messageHandler)
+	h, err := networks.NewLibp2pHost(0, messageHandler)
 	if err != nil {
 		fmt.Println("Failed to create libp2p host:", err)
 		return

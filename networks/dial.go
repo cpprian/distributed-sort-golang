@@ -1,4 +1,4 @@
-package networking
+package networks
 
 import (
 	"context"

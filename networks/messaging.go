@@ -1,4 +1,4 @@
-package networking
+package networks
 
 import (
 	"encoding/json"
@@ -31,6 +31,7 @@ type UnknownMessageProcessor func(msg messages.IMessage, controller MessagingCon
 
 type MessagingProtocol struct {
 	processor UnknownMessageProcessor
+	initiator *MessagingInitiator
 }
 
 func NewMessagingProtocol(processor UnknownMessageProcessor) *MessagingProtocol {
@@ -179,4 +180,46 @@ func (mi *MessagingInitiator) GetRemoteAddress() ma.Multiaddr {
 		return nil
 	}
 	return mi.stream.Conn().RemoteMultiaddr()
+}
+
+func (mp *MessagingProtocol) SetInitiator(initiator *MessagingInitiator) {
+	mp.initiator = initiator
+}
+
+func (mp *MessagingProtocol) SendMessage(msg messages.IMessage) <-chan messages.IMessage {
+	if mp.initiator == nil {
+		return nil
+	}
+	return mp.initiator.SendMessage(msg)
+}
+
+func (mp *MessagingProtocol) Close() {
+	if mp.initiator != nil {
+		mp.initiator.Close()
+	}
+}
+
+func (mp *MessagingProtocol) GetMessageProcessor() UnknownMessageProcessor {
+	return mp.processor
+}
+
+func (mp *MessagingProtocol) GetProtocolID() protocol.ID {
+	if mp.initiator != nil {
+		return mp.initiator.GetProtocolID()
+	}
+	return ""
+}
+
+func (mp *MessagingProtocol) GetRemoteAddress() ma.Multiaddr {
+	if mp.initiator != nil {
+		return mp.initiator.GetRemoteAddress()
+	}
+	return nil
+}
+
+func (mp *MessagingProtocol) RetrieveParticipatingNodes(host host.Host, knownParticipant ma.Multiaddr, protocolID protocol.ID, processor UnknownMessageProcessor) (map[int64]neighbours.Neighbour, error) {
+	if mp.initiator != nil {
+		return mp.initiator.RetrieveParticipatingNodes(host, knownParticipant, protocolID, processor)
+	}
+	return nil, fmt.Errorf("no initiator set")
 }
