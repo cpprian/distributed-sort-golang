@@ -2,12 +2,15 @@ package networking
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/protocol"
 
 	"github.com/cpprian/distributed-sort-golang/messages"
 	"github.com/cpprian/distributed-sort-golang/neighbours"
@@ -16,11 +19,12 @@ import (
 )
 
 type MessagingController interface {
-	SendMessage(msg messages.BaseMessage) <-chan messages.BaseMessage
-	RetrieveParticipatingNodes(addr ma.Multiaddr) (map[int64]neighbours.Neighbour, error)
+	SendMessage(msg messages.IMessage) <-chan messages.IMessage
+	Close()
+	RetrieveParticipatingNodes(host host.Host, knownParticipant ma.Multiaddr, protocolID protocol.ID, processor UnknownMessageProcessor) (map[int64]neighbours.Neighbour, error)
 }
 
-type UnknownMessageProcessor func(msg messages.BaseMessage, controller MessagingController)
+type UnknownMessageProcessor func(msg messages.IMessage, controller MessagingController)
 
 type MessagingProtocol struct {
 	processor UnknownMessageProcessor
@@ -38,7 +42,7 @@ func (mp *MessagingProtocol) HandleStream(s network.Stream) {
 type MessagingInitiator struct {
 	stream       network.Stream
 	processor    UnknownMessageProcessor
-	sentRequests map[uuid.UUID]chan messages.BaseMessage
+	sentRequests map[uuid.UUID]chan messages.IMessage
 	mu           sync.Mutex
 }
 
@@ -46,7 +50,7 @@ func NewMessagingInitiator(processor UnknownMessageProcessor, stream network.Str
 	return &MessagingInitiator{
 		stream:       stream,
 		processor:    processor,
-		sentRequests: make(map[uuid.UUID]chan messages.BaseMessage),
+		sentRequests: make(map[uuid.UUID]chan messages.IMessage),
 	}
 }
 
@@ -54,62 +58,62 @@ func (mi *MessagingInitiator) Run() {
 	log.Println("MessagingInitiator started, waiting for messages...")
 	decoder := json.NewDecoder(mi.stream)
 	for {
-		var msg messages.BaseMessage
+		var msg messages.IMessage
 		if err := decoder.Decode(&msg); err != nil {
 			log.Println("Error decoding message: ", err)
 			return
 		}
-		if messages.MessageRegistry[msg.MessageType].RequiresResponse {
+		if messages.MessageRegistry[msg.GetMessageType()].RequiresResponse {
 			mi.mu.Lock()
-			log.Println("Received message with transaction ID: ", msg.TransactionID)
+			log.Println("Received message with transaction ID: ", msg.GetTransactionID())
 			if ch, ok := mi.sentRequests[msg.GetTransactionID()]; ok {
 				ch <- msg
 				delete(mi.sentRequests, msg.GetTransactionID())
 			}
 			mi.mu.Unlock()
 		} else {
-			log.Println("Processing message of type: ", msg.MessageType)
+			log.Println("Processing message of type: ", msg.GetMessageType())
 			go mi.processor(msg, mi)
 		}
 	}
 }
 
-func (mi *MessagingInitiator) SendMessage(msg messages.BaseMessage) <-chan messages.BaseMessage {
+func (mi *MessagingInitiator) SendMessage(msg messages.IMessage) <-chan messages.IMessage {
 	mi.mu.Lock()
 	defer mi.mu.Unlock()
 
-	future := make(chan messages.BaseMessage, 1)
-	mi.sentRequests[msg.TransactionID] = future
+	future := make(chan messages.IMessage, 1)
+	mi.sentRequests[msg.GetTransactionID()] = future
 
 	encoder := json.NewEncoder(mi.stream)
 	if err := encoder.Encode(msg); err != nil {
 		log.Println("Error encoding message:", err)
 		close(future)
-		delete(mi.sentRequests, msg.TransactionID)
+		delete(mi.sentRequests, msg.GetTransactionID())
 	}
 
-	log.Println("Sent message with transaction ID: ", msg.TransactionID)
+	log.Println("Sent message with transaction ID: ", msg.GetTransactionID())
 	log.Println("Message content:", msg)
 
-	if messages.MessageRegistry[msg.MessageType].RequiresResponse {
+	if messages.MessageRegistry[msg.GetMessageType()].RequiresResponse {
 		go func() {
 			select {
 			case <-future:
-				log.Println("Received response for transaction ID: ", msg.TransactionID)
+				log.Println("Received response for transaction ID: ", msg.GetTransactionID())
 				mi.mu.Lock()
-				delete(mi.sentRequests, msg.TransactionID)
+				delete(mi.sentRequests, msg.GetTransactionID())
 				mi.mu.Unlock()
 			case <-time.After(2 * time.Second):
-				log.Println("Stream closed before response for transaction ID: ", msg.TransactionID)
+				log.Println("Stream closed before response for transaction ID: ", msg.GetTransactionID())
 				close(future)
 				mi.mu.Lock()
-				delete(mi.sentRequests, msg.TransactionID)
+				delete(mi.sentRequests, msg.GetTransactionID())
 				mi.mu.Unlock()
 			}
 		}()
 	}
 
-	log.Println("Future created for transaction ID: ", msg.TransactionID)
+	log.Println("Future created for transaction ID: ", msg.GetTransactionID())
 	return future
 }
 
@@ -122,7 +126,7 @@ func (mi *MessagingInitiator) Close() {
 		close(future)
 		delete(mi.sentRequests, id)
 	}
-	mi.sentRequests = make(map[uuid.UUID]chan messages.BaseMessage)
+	mi.sentRequests = make(map[uuid.UUID]chan messages.IMessage)
 
 	if err := mi.stream.Close(); err != nil {
 		log.Println("Error closing stream:", err)
@@ -131,6 +135,24 @@ func (mi *MessagingInitiator) Close() {
 	}
 }
 
-func (mi *MessagingInitiator) RetrieveParticipatingNodes(knownParticipant ma.Multiaddr) (map[int64]neighbours.Neighbour, error) {
-	return nil, nil
+func (mc *MessagingInitiator) RetrieveParticipatingNodes(
+	host host.Host,
+	knownParticipant ma.Multiaddr,
+	protocolID protocol.ID,
+	processor UnknownMessageProcessor,
+) (map[int64]neighbours.Neighbour, error) {
+	log.Println("Retrieving participating nodes...")
+	controller, err := DialByMultiaddr(host, knownParticipant, protocolID, processor)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial by multiaddr: %w", err)
+	}
+
+	msg := messages.NewNodesListMessage()
+	future := controller.SendMessage(msg)
+
+	select {
+	case responseMsg := <-future:
+		response, ok := responseMsg.(messages.NodesListResponseMessage)
+		
+	}
 }
