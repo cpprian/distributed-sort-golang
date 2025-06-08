@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"reflect"
 	"sync"
 	"time"
 
@@ -63,16 +64,55 @@ func NewMessagingInitiator(processor UnknownMessageProcessor, stream network.Str
 	}
 }
 
+type Envelope struct {
+	MessageType   messages.MessageType `json:"messageType"`
+	TransactionID uuid.UUID            `json:"transactionId"`
+	Raw           json.RawMessage      `json:"-"`
+}
+
 func (mi *MessagingInitiator) Run() {
 	log.Println("MessagingInitiator started, waiting for messages...")
 	decoder := json.NewDecoder(mi.stream)
 	for {
-		var msg messages.IMessage
-		if err := decoder.Decode(&msg); err != nil {
-			log.Println("Error decoding message: ", err)
+		var rawMap map[string]json.RawMessage
+		if err := decoder.Decode(&rawMap); err != nil {
+			log.Println("Error decoding raw JSON: ", err)
 			return
 		}
-		if messages.MessageRegistry[msg.GetMessageType()].RequiresResponse {
+	
+		var envelope Envelope
+		if err := json.Unmarshal(rawMap["messageType"], &envelope.MessageType); err != nil {
+			log.Println("Failed to read messageType:", err)
+			continue
+		}
+		if err := json.Unmarshal(rawMap["transactionId"], &envelope.TransactionID); err != nil {
+			log.Println("Failed to read transactionId:", err)
+			continue
+		}
+	
+		envelope.Raw, _ = json.Marshal(rawMap)
+	
+		// typ wiadomości
+		info, ok := messages.MessageRegistry[envelope.MessageType]
+		if !ok {
+			log.Println("Unknown message type received:", envelope.MessageType)
+			continue
+		}
+	
+		// utwórz strukturę docelową
+		msgPtr := reflect.New(info.GoType).Interface()
+		if err := json.Unmarshal(envelope.Raw, msgPtr); err != nil {
+			log.Println("Error unmarshalling into typed message: ", err)
+			continue
+		}
+	
+		msg, ok := msgPtr.(messages.IMessage)
+		if !ok {
+			log.Println("Decoded message does not implement IMessage")
+			continue
+		}
+	
+		if info.RequiresResponse {
 			mi.mu.Lock()
 			log.Println("Received message with transaction ID: ", msg.GetTransactionID())
 			if ch, ok := mi.sentRequests[msg.GetTransactionID()]; ok {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"math/rand"
@@ -46,18 +47,23 @@ func main() {
 	sortingManager.Activate(targetAddr)
 	log.Println("Activated node with ID:", sortingManager.ID, "and address:", sortingManager.Host.Host.Network().ListenAddresses()[0])
 
-	for range 10 {
+	for range 3 {
 		sortingManager.AddItem(int64(rand.Intn(100)))
 	}
 
 	log.Println("Initial items:", sortingManager.GetItems())
 
+	scanner := bufio.NewScanner(os.Stdin)
 	go func() {
 		for {
 			var input string
-			_, err := fmt.Scanln(&input)
-			if err != nil {
-				log.Println("Error reading input:", err)
+			fmt.Print("Enter command (allitems, items, add <number>, del <number>, nodes): ")
+			if !scanner.Scan() {
+				log.Println("Error reading input:", scanner.Err())
+				continue
+			}
+			input = scanner.Text()
+			if input == "" {
 				continue
 			}
 			log.Println("Received command:", input)
@@ -94,6 +100,5 @@ func main() {
 			}
 		}
 	}()
-	log.Println("Distributed sorting application is running. Type 'allitems', 'items', 'add <number>', 'del <number>', or 'nodes' to interact.")
 	select {} // Keep the main goroutine running
 }
