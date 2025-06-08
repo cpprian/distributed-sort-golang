@@ -2,6 +2,7 @@ package sorting
 
 import (
 	"log"
+	"sort"
 	"time"
 
 	"github.com/cpprian/distributed-sort-golang/messages"
@@ -307,9 +308,27 @@ import (
 
 func (sm *SortingManager) AddItem(item int64) {
 	log.Println("Adding item: ", item)
-	// TODO: implement AddItem here
-}
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
 
+	if len(sm.Items) > 0 {
+		if item < sm.GetFirstItem() {
+			sm.sendMessageOnCornerItemChange(sm.GetLeftNeighbour(), item)
+		}
+		if item > sm.GetLastItem() {
+			sm.sendMessageOnCornerItemChange(sm.GetRightNeighbour(), item)
+		}
+	} else {
+		sm.sendMessageOnCornerItemChange(sm.GetLeftNeighbour(), item)
+		sm.sendMessageOnCornerItemChange(sm.GetRightNeighbour(), item)
+	}
+
+	sm.Items = append(sm.Items, item)
+	sort.Slice(sm.Items, func(i, j int) bool {
+		return sm.Items[i] < sm.Items[j]
+	})
+	log.Printf("Added item: %d. Local items after addition: %v", item, sm.Items)
+}
 
 func (sm *SortingManager) sendMessageOnCornerItemChange(neighbour *neighbours.Neighbour, item int64) {
 	log.Println("Sending message on corner item change for item:", item)

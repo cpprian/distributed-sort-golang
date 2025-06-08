@@ -116,7 +116,7 @@ func (sm *SortingManager) GetLastItem() int64 {
 	return sm.Items[len(sm.Items)-1]
 }
 
-func (sm *SortingManager) GetNeighbour(isRight bool) *neighbours.Neighbour {
+func (sm *SortingManager) getNeighbour(isRight bool) *neighbours.Neighbour {
 	var (
 		targetID  int64
 		found     bool
@@ -140,11 +140,11 @@ func (sm *SortingManager) GetNeighbour(isRight bool) *neighbours.Neighbour {
 }
 
 func (sm *SortingManager) GetRightNeighbour() *neighbours.Neighbour {
-	return sm.GetNeighbour(true)
+	return sm.getNeighbour(true)
 }
 
 func (sm *SortingManager) GetLeftNeighbour() *neighbours.Neighbour {
-	return sm.GetNeighbour(false)
+	return sm.getNeighbour(false)
 }
 
 func (sm *SortingManager) GetAllItems() []int64 {
