@@ -8,303 +8,9 @@ import (
 	"github.com/cpprian/distributed-sort-golang/messages"
 	"github.com/cpprian/distributed-sort-golang/neighbours"
 	"github.com/cpprian/distributed-sort-golang/networking"
+	"github.com/cpprian/distributed-sort-golang/utils"
+	"github.com/google/uuid"
 )
-
-// import io.libp2p.core.Host;
-// import io.libp2p.core.multiformats.Multiaddr;
-// import lombok.Getter;
-// import lombok.NoArgsConstructor;
-// import lombok.Setter;
-
-// import java.util.*;
-// import java.util.concurrent.CompletableFuture;
-// import java.util.concurrent.ExecutionException;
-// import java.util.logging.Level;
-// import java.util.logging.Logger;
-
-// @Setter
-// @Getter
-// @NoArgsConstructor
-// public class SortingManager<T extends Comparable<T>> {
-//     private Logger logger = Logger.getLogger(this.getClass().getName());
-//     private Long id;
-//     private Map<Long, Neighbour> participatingNodes = new HashMap<>();
-//     private List<T> items = new ArrayList<>();
-//     private Messaging messaging;
-//     private Host host;
-//     private Neighbour self;
-
-//     public void activate(Multiaddr knownParticipant) {
-//         logger.setLevel(Level.WARNING);
-//         try {
-//             host.start().get();
-//         } catch (InterruptedException e) {
-//             throw new RuntimeException(e);
-//         } catch (ExecutionException e) {
-//             throw new RuntimeException(e);
-//         }
-//         if (knownParticipant == null) {
-//             id = 0L;
-//             self = new Neighbour(host.listenAddresses().get(0), id);
-//             participatingNodes.put(id, self);
-//         } else {
-// //            retrieveParticipatingNodes(knownParticipant).whenComplete((map, throwable) -> {
-// //                participatingNodes = map;
-//             try {
-//                 participatingNodes = retrieveParticipatingNodes(knownParticipant).get();
-//             } catch (InterruptedException e) {
-//                 throw new RuntimeException(e);
-//             } catch (ExecutionException e) {
-//                 throw new RuntimeException(e);
-//             }
-//             Long maxId =
-//                         participatingNodes.keySet().stream().max(Long::compare)
-//                                 .get();
-//                 id = maxId + 1;
-//                 self = new Neighbour(host.listenAddresses().get(0), id);
-//                 participatingNodes.put(id, self);
-//                 announceSelf();
-// //            });
-
-//         }
-
-//         new Timer().schedule(new TimerTask() {
-//             @Override
-//             public void run() {
-//                 if(items.size() > 0) {
-//                     sendMessageOnCornerItemChange(getLeftNeighbour(),
-//                             getFirstItem());
-//                     sendMessageOnCornerItemChange(getRightNeighbour(),
-//                             getLastItem());
-//                 }
-//             }
-//         }, 0L, 500L);
-
-//     }
-
-//     public void add(T item) {
-//         if (item == null) {
-//             return;
-//         }
-//         if (!items.isEmpty()) {
-//             //check if first item will change
-//             if (item.compareTo(getFirstItem()) < 0) {
-//                 sendMessageOnCornerItemChange(getLeftNeighbour(), item);
-//             }
-
-//             //check if last item will change
-//             if (item.compareTo(getLastItem()) > 0) {
-//                 sendMessageOnCornerItemChange(getRightNeighbour(), item);
-//             }
-//         } else {
-//             sendMessageOnCornerItemChange(getLeftNeighbour(), item);
-//             sendMessageOnCornerItemChange(getRightNeighbour(), item);
-//         }
-//         synchronized (items) {
-//             items.add(item);
-//             items.sort(Comparable::compareTo);
-//         }
-//     }
-
-//     public void remove(T item) {
-//         if (item == null) {
-//             return;
-//         }
-//         items.remove(item);
-//     }
-
-//     public T getFirstItem() {
-//         return items.get(0);
-//     }
-
-//     public T getLastItem() {
-//         return items.get(items.size() - 1);
-//     }
-
-//     public Optional<Neighbour> getRightNeighbour() {
-//         var neighbour = participatingNodes.entrySet().stream()
-//                                           .filter(entry -> entry.getKey() >
-//                                                   id)
-//                                           .min(Map.Entry.comparingByKey())
-//                                           .map(Map.Entry::getValue);
-//         return neighbour;
-//     }
-
-//     public Optional<Neighbour> getLeftNeighbour() {
-//         var neighbour = participatingNodes.entrySet().stream()
-//                                           .filter(entry -> entry.getKey() <
-//                                                   id)
-//                                           .max(Map.Entry.comparingByKey())
-//                                           .map(Map.Entry::getValue);
-//         return neighbour;
-//     }
-
-//     public void sendMessageOnCornerItemChange(
-//             Optional<Neighbour> neighbour,
-//             T item) {
-//         if (neighbour.isEmpty()) {
-//             return;
-//         }
-//         CornerItemChangeMessage message =
-//                 new CornerItemChangeMessage(item, id);
-//         messaging.dial(host, neighbour.get().getMultiaddr())
-//                  .getController()
-//                  .whenCompleteAsync((controller, throwable) -> controller.sendMessage(message).whenCompleteAsync((response, throwable1) -> respondToItemsExchange(
-//                          (ItemExchangeMessage<T>) response, controller)));
-//     }
-
-//     public void processCornerItemChange (
-//             CornerItemChangeMessage<T> message, MessagingController controller) {
-//         boolean sent = false;
-//         if (message.getSenderId() > id) {
-//             if (getLastItem().compareTo(message.getItem()) > 0) {
-//                 orderItemsExchange(
-//                         controller,
-//                         getLastItem(),
-//                         message.getItem(),
-//                         message.getSenderId(),
-//                         message.getTransactionId());
-//                 sent = true;
-//             }
-//         } else {
-//             if (getFirstItem().compareTo(message.getItem()) < 0) {
-//                 orderItemsExchange(
-//                         controller,
-//                         getFirstItem(),
-//                         message.getItem(),
-//                         message.getSenderId(),
-//                         message.getTransactionId());
-//                 sent = true;
-//             }
-//         }
-//         if (!sent) {
-//             controller.sendMessage(new ConfirmMessage(message.getTransactionId()));
-//         }
-//     }
-
-//     public void orderItemsExchange(MessagingController controller, T offeredItem, T wantedItem, long neighbourId, UUID transactionId) {
-//         CompletableFuture<Message> future =
-//                 controller.sendMessage(
-//                         new ItemExchangeMessage<>(offeredItem, wantedItem, transactionId, id));
-//         if(!items.remove(offeredItem)) {
-//             logger.severe("Could not remove item " + offeredItem + ". It was not present!");
-//         }
-//         future.whenCompleteAsync((message, throwable) -> {
-//             ItemExchangeMessage<T> response =
-//                     (ItemExchangeMessage<T>) message;
-
-//             if (neighbourId > id) {
-//                 items.add(items.size(), response.getOfferedItem());
-//             } else {
-//                 items.add(0, response.getOfferedItem());
-//             }
-//             items.sort(Comparable::compareTo);
-//         }).exceptionally(throwable -> {
-//             logger.info("Reverting...");
-//             items.add(offeredItem);
-//             items.sort(Comparable::compareTo);
-//             return null;
-//         });
-
-//     }
-
-//     public void respondToItemsExchange(ItemExchangeMessage<T> message,
-//                                        MessagingController controller) {
-//         T itemToSend;
-//         if (message.getSenderId() > id) {
-//             itemToSend = items.get(items.size() - 1);
-//             if (!itemToSend.equals(message.getWantedItem())) {
-//                 controller.sendMessage(new ErrorMessage(message.getTransactionId()));
-//                 return;
-//             }
-//             items.set(items.size() - 1, message.getOfferedItem());
-//         } else {
-//             itemToSend = items.get(0);
-//             if(!itemToSend.equals(message.getWantedItem())) {
-//                 controller.sendMessage(new ErrorMessage(message.getTransactionId()));
-//                 return;
-//             }
-//             items.set(0, message.getOfferedItem());
-//         }
-//         items.sort(Comparable::compareTo);
-
-//         controller.sendMessage(new ItemExchangeMessage<>(itemToSend,
-//                 message.getWantedItem(),
-//                 message.getTransactionId(), id));
-//         //TODO possible improvement - response might get lost in transit
-//     }
-
-//     public void processMessage(Message message,
-//                                MessagingController controller) {
-//         if (message instanceof CornerItemChangeMessage changeMessage) {
-//             processCornerItemChange(changeMessage, controller);
-//         } else if (message instanceof NodesListMessage nodesListMessage) {
-//             NodesListResponseMessage response =
-//                     new NodesListResponseMessage(participatingNodes,
-//                             nodesListMessage.getTransactionId());
-//             controller.sendMessage(response);
-//         } else if (message instanceof AnnounceSelfMessage announceSelfMessage) {
-//             participatingNodes.put(announceSelfMessage.getId(),
-//                     new Neighbour(
-//                             announceSelfMessage.getListeningAddress(),
-//                             announceSelfMessage.getId()));
-//         } else if (message instanceof GetItemsMessage<?> getItemsMessage) {
-//             GetItemsMessage response = new GetItemsMessage(items, getItemsMessage.getTransactionId());
-//             controller.sendMessage(response);
-//         }
-
-//     }
-
-//     public CompletableFuture<Map<Long, Neighbour>> retrieveParticipatingNodes(
-//             Multiaddr knownParticipant) {
-//         var response = messaging.dial(host, knownParticipant).getController().thenCompose(controller -> {
-//             CompletableFuture<Message> future =
-//                     controller.sendMessage(new NodesListMessage());
-//             return future.thenApplyAsync(o -> ((NodesListResponseMessage) o).getParticipatingNodes());
-//         });
-
-//         return response;
-//     }
-
-//     public void announceSelf() {
-//         for (Neighbour neighbour : participatingNodes.values()) {
-//             if (neighbour.getId() != id){
-//                 messaging.dial(host, neighbour.getMultiaddr())
-//                          .getController().thenApplyAsync(
-//                                  controller -> controller.sendMessage(
-//                                          new AnnounceSelfMessage(id,
-//                                                  host.listenAddresses().get(0))));
-//             }
-//         }
-//     }
-
-//     public List<T> getAllItems() {
-//         List<T> items = new ArrayList<>();
-//         for (Neighbour neighbour : participatingNodes.entrySet().stream()
-//                                                      .sorted(Map.Entry.comparingByKey())
-//                                                      .map(
-//                                                              Map.Entry::getValue)
-//                                                      .toList()) {
-//             try {
-//                 var itemsFromNode = messaging.dial(host, neighbour.getMultiaddr())
-//                          .getController().thenCompose(controller -> {
-//                              CompletableFuture<Message> future =
-//                                      controller.sendMessage(
-//                                              new GetItemsMessage<T>());
-//                              return future.thenApplyAsync(message -> ((GetItemsMessage)message).getItems());
-//                          });
-//                 items.addAll(itemsFromNode.get());
-
-//             } catch (InterruptedException e) {
-//                 throw new RuntimeException(e);
-//             } catch (ExecutionException e) {
-//                 throw new RuntimeException(e);
-//             }
-//         }
-//         return items;
-//     }
-
-// }
 
 func (sm *SortingManager) AddItem(item int64) {
 	log.Println("Adding item: ", item)
@@ -365,14 +71,128 @@ func (sm *SortingManager) sendMessageOnCornerItemChange(neighbour *neighbours.Ne
 func (sm *SortingManager) RespondToItemExchange(msg messages.ItemExchangeMessage, controller networking.MessagingController) {
 	log.Printf("Responding to item exchange: %v", msg)
 
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	var itemToSend int64 
+	senderID := msg.GetSenderID()
+
+	if senderID > sm.ID {
+		itemToSend = sm.GetLastItem()
+		if itemToSend != msg.GetWantedItem() {
+			log.Printf("Error: wanted item %d does not match last item %d", msg.GetWantedItem(), itemToSend)
+			controller.SendMessage(messages.NewErrorMessage(msg.GetTransactionID()))
+			return
+		}
+		sm.Items[len(sm.Items)-1] = msg.GetOfferedItem()
+	} else {
+		itemToSend = sm.GetFirstItem()
+		if itemToSend != msg.GetWantedItem() {
+			log.Printf("Error: wanted item %d does not match first item %d", msg.GetWantedItem(), itemToSend)
+			controller.SendMessage(messages.NewErrorMessage(msg.GetTransactionID()))
+			return
+		}
+		sm.Items[0] = msg.GetOfferedItem()
+	}
+
+	sort.Slice(sm.Items, func(i, j int) bool {
+		return sm.Items[i] < sm.Items[j]
+	})
+
+	responseMsg := messages.ItemExchangeMessage{
+		BaseMessage: messages.BaseMessage{
+			MessageType:   messages.ItemExchange,
+			TransactionID: msg.GetTransactionID(),
+		},
+		OfferedItem: itemToSend,
+		WantedItem:  msg.GetWantedItem(),
+		SenderID:    sm.ID,
+	}
+
+	log.Printf("Sending response with offered item %d for transaction ID %s", itemToSend, msg.GetTransactionID())
+	controller.SendMessage(responseMsg)
 }
 
-func (sm *SortingManager) OrderItemsExchange(controller networking.MessagingController, offeredItem int64, wantedItem int64, neighbourId int64, transactionId string) {
+func (sm *SortingManager) OrderItemsExchange(controller networking.MessagingController, offeredItem int64, wantedItem int64, neighbourId int64, transactionId uuid.UUID) {
 	log.Printf("Ordering items exchange: offeredItem=%d, wantedItem=%d, neighbourId=%d, transactionId=%s", offeredItem, wantedItem, neighbourId, transactionId)
 
+	sm.mu.Lock()
+	removed := false
+	for i, v := range sm.Items {
+		if v == offeredItem {
+			sm.Items = append(sm.Items[:i], sm.Items[i+1:]...)
+			removed = true
+			break
+		}
+	}
+	sm.mu.Unlock()
+
+	if !removed {
+		log.Printf("Offered item %d not found in local items: %v", offeredItem, sm.Items)
+		return
+	}
+
+	go func() {
+		respChan := controller.SendMessage(messages.NewItemExchangeMessageWithID(offeredItem, wantedItem, transactionId, sm.ID))
+		
+		select {
+		case msg := <-respChan:
+			reposnse, ok := msg.(messages.ItemExchangeMessage)
+			if !ok {
+				log.Printf("Unexpected response type: %T", msg)
+				sm.mu.Lock()
+				sm.Items = append(sm.Items, offeredItem)
+				sort.Slice(sm.Items, func(i, j int) bool { 
+					return sm.Items[i] < sm.Items[j] 
+				})
+				sm.mu.Unlock()
+				return
+			}
+
+			sm.mu.Lock()
+			if neighbourId > sm.ID {
+				sm.Items = append(sm.Items, reposnse.GetOfferedItem())
+			} else {
+				sm.Items = append([]int64{reposnse.GetOfferedItem()}, sm.Items...)
+			}
+			sort.Slice(sm.Items, func(i, j int) bool {
+				return sm.Items[i] < sm.Items[j]
+			})
+			log.Printf("Items after exchange: %v", sm.Items)
+			sm.mu.Unlock()
+		case <-time.After(3 * time.Second):
+			log.Printf("Timeout while waiting for response from neighbour %d", neighbourId)
+			sm.mu.Lock()
+			sm.Items = append(sm.Items, offeredItem)
+			sort.Slice(sm.Items, func(i, j int) bool {
+				return sm.Items[i] < sm.Items[j]
+			})
+			log.Printf("Reverted items after timeout: %v", sm.Items)
+			sm.mu.Unlock()
+		}
+	}()
 }
 
 func (sm *SortingManager) ProcessCornerItemChange(msg messages.CornerItemChangeMessage, controller networking.MessagingController) {
 	log.Printf("Processing corner item change: %v\n", msg)
 
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	if msg.SenderID > sm.ID {
+		if sm.GetLastItem() > msg.Item {
+			sm.OrderItemsExchange(controller, sm.GetLastItem(), msg.Item, msg.SenderID, msg.GetTransactionID())
+		}
+	} else {
+		if sm.GetFirstItem() < msg.Item {
+			sm.OrderItemsExchange(controller, sm.GetFirstItem(), msg.Item, msg.SenderID, msg.GetTransactionID())
+		}
+	}
+
+	if !utils.Contains(sm.Items, msg.Item) {
+		log.Printf("Item %d not found in local items: %v", msg.Item, sm.Items)
+		controller.SendMessage(messages.NewConfirmMessage(msg.GetTransactionID()))
+		return
+	}
+	log.Printf("Item %d found in local items: %v\n", msg.Item, sm.Items)
 }

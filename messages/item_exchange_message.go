@@ -28,3 +28,15 @@ func NewItemExchangeMessageWithID(offered, wanted int64, transactionID uuid.UUID
 		SenderID:    senderID,
 	}
 }
+
+func (m ItemExchangeMessage) GetSenderID() int64 {
+	return m.SenderID
+}
+
+func (m ItemExchangeMessage) GetOfferedItem() int64 {
+	return m.OfferedItem
+}
+
+func (m ItemExchangeMessage) GetWantedItem() int64 {
+	return m.WantedItem
+}
