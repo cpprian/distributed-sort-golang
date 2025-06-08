@@ -23,6 +23,7 @@ type MessagingController interface {
 	Close()
 	GetMessageProcessor() UnknownMessageProcessor
 	GetProtocolID() protocol.ID
+	GetRemoteAddress() ma.Multiaddr
 	RetrieveParticipatingNodes(host host.Host, knownParticipant ma.Multiaddr, protocolID protocol.ID, processor UnknownMessageProcessor) (map[int64]neighbours.Neighbour, error)
 }
 
@@ -171,4 +172,11 @@ func (mi *MessagingInitiator) GetMessageProcessor() UnknownMessageProcessor {
 
 func (mi *MessagingInitiator) GetProtocolID() protocol.ID {
 	return mi.stream.Protocol()
+}
+
+func (mi *MessagingInitiator) GetRemoteAddress() ma.Multiaddr {
+	if mi.stream == nil {
+		return nil
+	}
+	return mi.stream.Conn().RemoteMultiaddr()
 }
