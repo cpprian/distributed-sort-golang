@@ -92,14 +92,12 @@ func (mi *MessagingInitiator) Run() {
 	
 		envelope.Raw, _ = json.Marshal(rawMap)
 	
-		// typ wiadomości
 		info, ok := messages.MessageRegistry[envelope.MessageType]
 		if !ok {
 			log.Println("Unknown message type received:", envelope.MessageType)
 			continue
 		}
 	
-		// utwórz strukturę docelową
 		msgPtr := reflect.New(info.GoType).Interface()
 		if err := json.Unmarshal(envelope.Raw, msgPtr); err != nil {
 			log.Println("Error unmarshalling into typed message: ", err)
@@ -113,17 +111,18 @@ func (mi *MessagingInitiator) Run() {
 		}
 	
 		if info.RequiresResponse {
-			mi.mu.Lock()
 			log.Println("Received message with transaction ID: ", msg.GetTransactionID())
 			if ch, ok := mi.sentRequests[msg.GetTransactionID()]; ok {
 				ch <- msg
+				log.Println("Sent response for transaction ID: ", msg.GetTransactionID())
 				delete(mi.sentRequests, msg.GetTransactionID())
+			} else {
+				log.Println("No future found for transaction ID: ", msg.GetTransactionID())
 			}
-			mi.mu.Unlock()
-		} else {
-			log.Println("Processing message of type: ", msg.GetMessageType())
-			go mi.processor(msg, mi)
 		}
+
+		log.Println("Processing message of type: ", msg.GetMessageType())	
+		go mi.processor(msg, mi)
 	}
 }
 
@@ -135,10 +134,13 @@ func (mi *MessagingInitiator) SendMessage(msg messages.IMessage) <-chan messages
 	mi.sentRequests[msg.GetTransactionID()] = future
 
 	encoder := json.NewEncoder(mi.stream)
-	if err := encoder.Encode(msg); err != nil {
-		log.Println("Error encoding message:", err)
+	log.Println("Writing to stream:", msg.GetTransactionID())
+	err := encoder.Encode(msg)
+	if err != nil {
+		log.Println("Failed to write to stream:", err)
 		close(future)
 		delete(mi.sentRequests, msg.GetTransactionID())
+		return future
 	}
 
 	log.Println("Sent message with transaction ID: ", msg.GetTransactionID())
@@ -206,7 +208,7 @@ func (mi *MessagingInitiator) RetrieveParticipatingNodes(
 			return nil, fmt.Errorf("unexpected message type: %T", responseMsg)
 		}
 		return response.GetParticipatingNodes(), nil
-	case <-time.After(3 * time.Second):
+	case <-time.After(300 * time.Second):
 		log.Println("Timeout waiting for nodes list response")
 		return nil, fmt.Errorf("timeout waiting for nodes list response")
 	}

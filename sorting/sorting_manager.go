@@ -174,6 +174,7 @@ func (sm *SortingManager) GetAllItems() []int64 {
 	sort.Slice(ids, func(i, j int) bool {
 		return ids[i] < ids[j]
 	})
+	log.Println("Participating nodes IDs:", ids)
 
 	for _, id := range ids {
 		neighbour := sm.ParticipatingNodes[id]
@@ -213,10 +214,23 @@ func (sm *SortingManager) ProcessMessage(msg messages.IMessage, controller netwo
 	case messages.CornerItemChangeMessage:
 		log.Printf("Received CornerItemChangeMessage: %s", msg)
 		sm.ProcessCornerItemChange(m, controller)
-	case messages.NodesListMessage:
+	case *messages.NodesListMessage:
 		log.Println("Received NodesListMessage, updating participating nodes...")
 		response := messages.NewNodesListResponseMessage(sm.ParticipatingNodes, m.GetTransactionID())
 		controller.SendMessage(response)
+	case *messages.NodesListResponseMessage:
+		log.Println("Received NodesListResponseMessage, updating participating nodes...")
+		sm.mu.Lock()
+		defer sm.mu.Unlock()
+		for id, neighbour := range m.GetParticipatingNodes() {
+			if _, exists := sm.ParticipatingNodes[id]; !exists {
+				log.Printf("Adding new neighbour: %d at %s", id, neighbour.Multiaddr.String())
+				sm.ParticipatingNodes[id] = neighbour
+			} else {
+				log.Printf("Updating existing neighbour: %d at %s", id, neighbour.Multiaddr.String())
+				sm.ParticipatingNodes[id] = neighbour
+			}
+		}
 	case messages.AnnounceSelfMessage:
 		log.Printf("Received AnnounceSelfMessage from %d: %s", m.ID, m.ListeningAddress)
 		neighbour := neighbours.NewNeighbour(m.ListeningAddress, m.ID)
