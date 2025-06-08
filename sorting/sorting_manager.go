@@ -2,6 +2,7 @@ package sorting
 
 import (
 	"log"
+	"sort"
 	"sync"
 	"time"
 
@@ -339,7 +340,7 @@ func (sm *SortingManager) Activate(knownParticipant ma.Multiaddr) {
 		log.Printf("No known participant. Setting self ID to %d and address to %s\n", sm.Self.ID, sm.Self.Multiaddr.String())
 	} else {
 		log.Println("Retrieving participating nodes from known participant:", knownParticipant)
-		nodes, err := sm.Messaging.RetrieveParticipatingNodes(sm.Host.Host, knownParticipant, sm.Messaging.GetProtocolID(), sm.Messaging.GetUnknownMessageProcessor())
+		nodes, err := sm.Messaging.RetrieveParticipatingNodes(sm.Host.Host, knownParticipant, sm.Messaging.GetProtocolID(), sm.Messaging.GetMessageProcessor())
 		if err != nil {
 			log.Println("Error retrieving participating nodes: ", err)
 			return
@@ -383,4 +384,109 @@ func (sm *SortingManager) AnnounceSelf() {
 	}
 
 	log.Println("Self announced successfully. Current participating nodes:", len(sm.ParticipatingNodes))
+}
+
+func (sm *SortingManager) AddItem(item int64) {
+	log.Println("Adding item: ", item)
+	// TODO: implement AddItem here
+}
+
+func (sm *SortingManager) RemoveItem(item int64) {
+	log.Println("Removing item: ", item)
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	for i, v := range sm.Items {
+		if v == item {
+			sm.Items = append(sm.Items[:i], sm.Items[i+1:]...)
+			log.Println("Item removed successfully.")
+			return
+		}
+	}
+	log.Println("Item not found in the list.")
+}
+
+func (sm *SortingManager) GetFirstItem() int64 {
+	return sm.Items[0]
+}
+
+func (sm *SortingManager) GetLastItem() int64 {
+	if len(sm.Items) == 0 {
+		return 0
+	}
+	return sm.Items[len(sm.Items)-1]
+}
+
+func (sm *SortingManager) GetNeighbour(isRight bool) *neighbours.Neighbour {
+	var (
+		targetID  int64
+		found     bool
+		neighbour neighbours.Neighbour
+	)
+
+	for id, n := range sm.ParticipatingNodes {
+		if (isRight && id > sm.ID) || (!isRight && id < sm.ID) {
+			if !found || (isRight && id < targetID) || (!isRight && id > targetID) {
+				targetID = id
+				neighbour = n
+				found = true
+			}
+		}
+	}
+
+	if found {
+		return &neighbour
+	}
+	return nil
+}
+
+func (sm *SortingManager) GetRightNeighbour() *neighbours.Neighbour {
+	return sm.GetNeighbour(true)
+}
+
+func (sm *SortingManager) GetLeftNeighbour() *neighbours.Neighbour {
+	return sm.GetNeighbour(false)
+}
+
+func (sm *SortingManager) GetAllItems() []int64 {
+	log.Println("Retrieving all items from participating nodes...")
+	var allItems []int64
+
+	ids := make([]int64, 0, len(sm.ParticipatingNodes))
+	for id := range sm.ParticipatingNodes {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool {
+		return ids[i] < ids[j]
+	})
+
+	for _, id := range ids {
+		neighbour := sm.ParticipatingNodes[id]
+		log.Printf("Retrieving items from neighbour %d at %s\n", id, neighbour.Multiaddr.String())
+
+		controller, err := networking.DialByMultiaddr(sm.Host.Host, neighbour.Multiaddr, sm.Messaging.GetProtocolID(), sm.Messaging.GetMessageProcessor())
+		if err != nil {
+			log.Printf("Failed to dial neighbour %s: %v", neighbour.Multiaddr.String(), err)
+			continue
+		}
+
+		msg := messages.NewGetItemsMessage()
+		responseChan := controller.SendMessage(msg)
+		select {
+		case response := <-responseChan:
+			if itemsMsg, ok := response.(messages.GetItemsMessage); ok {
+				log.Printf("Received items from neighbour %d: %v", id, itemsMsg.Items)
+				allItems = append(allItems, itemsMsg.Items...)
+			} else {
+				log.Printf("Unexpected response type from neighbour %d: %T", id, response)
+			}
+		case <-time.After(3 * time.Second):
+			log.Printf("Timeout while waiting for items from neighbour %d", id)
+		}
+
+		controller.Close()
+		log.Printf("Finished retrieving items from neighbour %d\n", id)
+	}
+
+	return allItems
 }
