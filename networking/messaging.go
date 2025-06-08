@@ -21,6 +21,8 @@ import (
 type MessagingController interface {
 	SendMessage(msg messages.IMessage) <-chan messages.IMessage
 	Close()
+	GetUnknownMessageProcessor() UnknownMessageProcessor
+	GetProtocolID() protocol.ID
 	RetrieveParticipatingNodes(host host.Host, knownParticipant ma.Multiaddr, protocolID protocol.ID, processor UnknownMessageProcessor) (map[int64]neighbours.Neighbour, error)
 }
 
@@ -135,7 +137,7 @@ func (mi *MessagingInitiator) Close() {
 	}
 }
 
-func (mc *MessagingInitiator) RetrieveParticipatingNodes(
+func (mi *MessagingInitiator) RetrieveParticipatingNodes(
 	host host.Host,
 	knownParticipant ma.Multiaddr,
 	protocolID protocol.ID,
@@ -153,6 +155,20 @@ func (mc *MessagingInitiator) RetrieveParticipatingNodes(
 	select {
 	case responseMsg := <-future:
 		response, ok := responseMsg.(messages.NodesListResponseMessage)
-		
+		if !ok {
+			return nil, fmt.Errorf("unexpected message type: %T", responseMsg)
+		}
+		return response.GetParticipatingNodes(), nil
+	case <-time.After(3 * time.Second):
+		log.Println("Timeout waiting for nodes list response")
+		return nil, fmt.Errorf("timeout waiting for nodes list response")
 	}
+}
+
+func (mi *MessagingInitiator) GetUnknownMessageProcessor() UnknownMessageProcessor {
+	return mi.processor
+}
+
+func (mi *MessagingInitiator) GetProtocolID() protocol.ID {
+	return mi.stream.Protocol()
 }

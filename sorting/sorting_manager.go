@@ -337,7 +337,7 @@ func (sm *SortingManager) Activate(knownParticipant ma.Multiaddr) {
 		log.Printf("No known participant. Setting self ID to %d and address to %s\n", sm.Self.ID, sm.Self.Multiaddr.String())
 	} else {
 		log.Println("Retrieving participating nodes from known participant:", knownParticipant)
-		nodes, err := sm.Messaging.RetrieveParticipatingNodes(knownParticipant)
+		nodes, err := sm.Messaging.RetrieveParticipatingNodes(sm.Host.Host, knownParticipant, sm.Messaging.GetProtocolID(), sm.Messaging.GetUnknownMessageProcessor())
 		if err != nil {
 			log.Println("Error retrieving participating nodes: ", err)
 			return

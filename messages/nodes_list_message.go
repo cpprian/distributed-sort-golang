@@ -12,7 +12,6 @@ func NewNodesListMessage() NodesListMessage {
 	}
 }
 
-
 func (m NodesListMessage) GetMessageType() MessageType {
 	return NodesList
 }

@@ -16,3 +16,7 @@ func NewNodesListResponseMessage(participatingNodes map[int64]neighbours.Neighbo
 		ParticipatingNodes: participatingNodes,
 	}
 }
+
+func (m NodesListResponseMessage) GetParticipatingNodes() map[int64]neighbours.Neighbour {
+	return m.ParticipatingNodes
+}
