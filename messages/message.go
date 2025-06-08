@@ -1,8 +1,8 @@
 package messages
 
 import (
-	"reflect"
 	"github.com/google/uuid"
+	"reflect"
 )
 
 type MessageType int

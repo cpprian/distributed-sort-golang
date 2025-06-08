@@ -10,10 +10,14 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 
 	"github.com/cpprian/distributed-sort-golang/messages"
+	"github.com/cpprian/distributed-sort-golang/neighbours"
+
+	ma "github.com/multiformats/go-multiaddr"
 )
 
 type MessagingController interface {
 	SendMessage(msg messages.BaseMessage) <-chan messages.BaseMessage
+	RetrieveParticipatingNodes(addr ma.Multiaddr) (map[int64]neighbours.Neighbour, error)
 }
 
 type UnknownMessageProcessor func(msg messages.BaseMessage, controller MessagingController)
@@ -125,4 +129,8 @@ func (mi *MessagingInitiator) Close() {
 	} else {
 		log.Println("Stream closed successfully.")
 	}
+}
+
+func (mi *MessagingInitiator) RetrieveParticipatingNodes(knownParticipant ma.Multiaddr) (map[int64]neighbours.Neighbour, error) {
+	return nil, nil
 }

@@ -6,7 +6,8 @@ import (
 
 	"github.com/cpprian/distributed-sort-golang/neighbours"
 	"github.com/cpprian/distributed-sort-golang/networking"
-	host "github.com/libp2p/go-libp2p/core/host"
+	"github.com/cpprian/distributed-sort-golang/utils"
+	ma "github.com/multiformats/go-multiaddr"
 )
 
 // import io.libp2p.core.Host;
@@ -308,24 +309,48 @@ import (
 type SortingManager struct {
 	ID                 int64
 	Items              []int64
-	ParticipatingNodes map[int64]string
-	Host               host.Host
-	Neighbour          neighbours.Neighbour
+	ParticipatingNodes map[int64]neighbours.Neighbour
+	Host               networking.Libp2pHost
+	Self               *neighbours.Neighbour
 	Messaging          networking.MessagingController
 	mu                 sync.Mutex
 }
 
-func NewSortingManager() *SortingManager {
-	id := int64(0)
-
-	log.Println("Creating SortingManager...")
-
+func NewSortingManager(host networking.Libp2pHost, messagingController networking.MessagingController) *SortingManager {
 	return &SortingManager{
-		ID:                 id,
+		ID:                 0,
 		Items:              []int64{},
-		ParticipatingNodes: make(map[int64]string),
-		Host:               nil,
-		Messaging:          nil,
+		ParticipatingNodes: make(map[int64]neighbours.Neighbour),
+		Host:               host,
+		Self:               neighbours.NewNeighbour(host.Host.Network().ListenAddresses()[0], 0),
+		Messaging:          messagingController,
 		mu:                 sync.Mutex{},
 	}
+}
+
+func (sm *SortingManager) Activate(knownParticipant ma.Multiaddr) {
+	log.Println("Activating SortingManager...")
+	sm.ParticipatingNodes[sm.Self.ID] = *sm.Self
+	sm.Self.ID = sm.ID
+
+	if knownParticipant == nil {
+		log.Printf("No known participant. Setting self ID to %d and address to %s\n", sm.Self.ID, sm.Self.Multiaddr.String())
+	} else {
+		log.Println("Retrieving participating nodes from known participant:", knownParticipant)
+		nodes, err := sm.Messaging.RetrieveParticipatingNodes(knownParticipant)
+		if err != nil {
+			log.Println("Error retrieving participating nodes: ", err)
+			return
+		}
+
+		sm.ParticipatingNodes = nodes
+		sm.ID = utils.MaxKey(nodes) + 1
+		log.Printf("Setting self ID to %d and address to %s\n", sm.Self.ID, sm.Self.Multiaddr.String())
+
+		sm.AnnounceSelf()
+	}
+}
+
+func (sm *SortingManager) AnnounceSelf() {
+	log.Println("Announcing self with ID: ", sm.ID)
 }

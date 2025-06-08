@@ -1,6 +1,5 @@
 package messages
 
-
 type NodesListMessage struct {
 	BaseMessage
 }

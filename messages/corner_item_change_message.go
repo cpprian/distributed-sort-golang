@@ -1,6 +1,5 @@
 package messages
 
-
 type CornerItemChangeMessage struct {
 	BaseMessage
 	Item     int64 `json:"item"`
