@@ -46,7 +46,7 @@ type MessageInfo struct {
 	RequiresResponse bool
 }
 
-var messageRegistry = map[MessageType]MessageInfo{
+var MessageRegistry = map[MessageType]MessageInfo{
 	ItemExchange:      {reflect.TypeOf(ItemExchangeMessage{}), true},
 	CornerItemChange:  {reflect.TypeOf(CornerItemChangeMessage{}), true},
 	NodesList:         {reflect.TypeOf(NodesListMessage{}), true},
