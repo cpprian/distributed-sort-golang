@@ -3,7 +3,9 @@ package sorting
 import (
 	"log"
 	"sync"
+	"time"
 
+	"github.com/cpprian/distributed-sort-golang/messages"
 	"github.com/cpprian/distributed-sort-golang/neighbours"
 	"github.com/cpprian/distributed-sort-golang/networking"
 	"github.com/cpprian/distributed-sort-golang/utils"
@@ -353,4 +355,32 @@ func (sm *SortingManager) Activate(knownParticipant ma.Multiaddr) {
 
 func (sm *SortingManager) AnnounceSelf() {
 	log.Println("Announcing self with ID: ", sm.ID)
+	
+	for id, neighbour := range sm.ParticipatingNodes {
+		if id == sm.ID {
+			continue
+		}
+
+		log.Println("Announcing self to neighbour: ", neighbour.Multiaddr.String())
+
+		controller, err := networking.DialByMultiaddr(sm.Host.Host, neighbour.Multiaddr, sm.Messaging.GetProtocolID(), sm.Messaging.GetMessageProcessor())
+		if err != nil {
+			log.Printf("Failed to dial neighbour %s: %v", neighbour.Multiaddr.String(), err)
+			continue
+		}
+
+		msg := messages.NewAnnounceSelfMessage(sm.ID, sm.Self.Multiaddr)
+		go func(c networking.MessagingController, m messages.IMessage) {
+			defer c.Close()
+			
+			select {
+			case <-c.SendMessage(m):
+				log.Printf("Sent AnnounceSelf to %v\n", neighbour)
+			case <-time.After(3 * time.Second):
+				log.Printf("Timeout while sending AnnounceSelf to %v\n", neighbour)
+			}
+		}(controller, msg)
+	}
+
+	log.Println("Self announced successfully. Current participating nodes:", len(sm.ParticipatingNodes))
 }

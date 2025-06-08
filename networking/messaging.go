@@ -21,7 +21,7 @@ import (
 type MessagingController interface {
 	SendMessage(msg messages.IMessage) <-chan messages.IMessage
 	Close()
-	GetUnknownMessageProcessor() UnknownMessageProcessor
+	GetMessageProcessor() UnknownMessageProcessor
 	GetProtocolID() protocol.ID
 	RetrieveParticipatingNodes(host host.Host, knownParticipant ma.Multiaddr, protocolID protocol.ID, processor UnknownMessageProcessor) (map[int64]neighbours.Neighbour, error)
 }
@@ -165,7 +165,7 @@ func (mi *MessagingInitiator) RetrieveParticipatingNodes(
 	}
 }
 
-func (mi *MessagingInitiator) GetUnknownMessageProcessor() UnknownMessageProcessor {
+func (mi *MessagingInitiator) GetMessageProcessor() UnknownMessageProcessor {
 	return mi.processor
 }
 
