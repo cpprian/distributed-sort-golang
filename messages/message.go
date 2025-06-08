@@ -18,6 +18,29 @@ const (
 	Error
 )
 
+func (mt MessageType) String() string {
+	switch mt {
+	case ItemExchange:
+		return "ItemExchange"
+	case CornerItemChange:
+		return "CornerItemChange"
+	case NodesList:
+		return "NodesList"
+	case NodesListResponse:
+		return "NodesListResponse"
+	case AnnounceSelf:
+		return "AnnounceSelf"
+	case GetItems:
+		return "GetItems"
+	case Confirm:
+		return "Confirm"
+	case Error:
+		return "Error"
+	default:
+		return "UnknownMessageType"
+	}
+}
+
 type MessageInfo struct {
 	GoType           reflect.Type
 	RequiresResponse bool

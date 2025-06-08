@@ -1,8 +1,10 @@
 package messages
 
 import (
-	"errors"
+	"encoding/json"
+	"log"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -236,32 +238,27 @@ func NewMessagingInitiator(processor UnknownMessageProcessor, stream network.Str
 }
 
 func (mi *MessagingInitiator) Run() {
+	log.Println("MessagingInitiator started, waiting for messages...")
+	decoder := json.NewDecoder(mi.stream)
 	for {
-		msg, err := mi.ReadMessage()
-		if err != nil {
-			// Handle error (e.g., log it, close the stream, etc.)
+		var msg BaseMessage
+		if err := decoder.Decode(&msg); err != nil {
+			log.Println("Error decoding message: ", err)
 			return
 		}
-
-		mi.mu.Lock()
-		future, exists := mi.sentRequests[msg.TransactionID]
-		if exists {
-			delete(mi.sentRequests, msg.TransactionID)
-			future <- msg
-			close(future)
+		if messageRegistry[msg.MessageType].RequiresResponse {
+			mi.mu.Lock()
+			log.Println("Received message with transaction ID: ", msg.TransactionID)
+			if ch, ok := mi.sentRequests[msg.GetTransactionID()]; ok {
+				ch <- msg
+				delete(mi.sentRequests, msg.GetTransactionID())
+			}
+			mi.mu.Unlock()
 		} else {
+			log.Println("Processing message of type: ", msg.MessageType)
 			go mi.processor(msg, mi)
 		}
-		mi.mu.Unlock()
 	}
-}
-
-func (mi *MessagingInitiator) ReadMessage() (BaseMessage, error) {
-	// Implement the logic to read a message from the stream.
-	// This is a placeholder implementation.
-	var msg BaseMessage
-	// Read from mi.stream and unmarshal into msg
-	return msg, nil // Replace with actual error handling
 }
 
 func (mi *MessagingInitiator) SendMessage(msg BaseMessage) <-chan BaseMessage {
@@ -271,38 +268,52 @@ func (mi *MessagingInitiator) SendMessage(msg BaseMessage) <-chan BaseMessage {
 	future := make(chan BaseMessage, 1)
 	mi.sentRequests[msg.TransactionID] = future
 
-	// Marshal the message and write it to the stream
-	// This is a placeholder implementation.
-	// Replace with actual marshaling logic.
-	// mi.stream.Write(...)
+	encoder := json.NewEncoder(mi.stream)
+	if err := encoder.Encode(msg); err != nil {
+		log.Println("Error encoding message:", err)
+		close(future)
+		delete(mi.sentRequests, msg.TransactionID)
+	}
 
+	log.Println("Sent message with transaction ID: ", msg.TransactionID)
+	log.Println("Message content:", msg)
+
+	if messageRegistry[msg.MessageType].RequiresResponse {
+		go func() {
+			select {
+			case <-future:
+				log.Println("Received response for transaction ID: ", msg.TransactionID)
+				mi.mu.Lock()
+				delete(mi.sentRequests, msg.TransactionID)
+				mi.mu.Unlock()
+			case <-time.After(2 * time.Second):
+				log.Println("Stream closed before response for transaction ID: ", msg.TransactionID)
+				close(future)
+				mi.mu.Lock()
+				delete(mi.sentRequests, msg.TransactionID)
+				mi.mu.Unlock()
+			}
+		}()
+	}
+
+	log.Println("Future created for transaction ID: ", msg.TransactionID)
 	return future
 }
 
 func (mi *MessagingInitiator) Close() {
 	mi.mu.Lock()
 	defer mi.mu.Unlock()
+	log.Println("Closing MessagingInitiator...")
 
-	for _, future := range mi.sentRequests {
+	for id, future := range mi.sentRequests {
 		close(future)
+		delete(mi.sentRequests, id)
 	}
 	mi.sentRequests = make(map[uuid.UUID]chan BaseMessage)
 
 	if err := mi.stream.Close(); err != nil {
-		// Handle error (e.g., log it)
+		log.Println("Error closing stream:", err)
+	} else {
+		log.Println("Stream closed successfully.")
 	}
-}
-
-var ErrTimeout = errors.New("messaging timeout")
-
-type MessagingError struct {
-	Msg string
-}
-
-func (e *MessagingError) Error() string {
-	return "MessagingError: " + e.Msg
-}
-
-func NewMessagingError(msg string) error {
-	return &MessagingError{Msg: msg}
 }
