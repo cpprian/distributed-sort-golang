@@ -229,7 +229,18 @@ func (mi *MessagingInitiator) GetRemoteAddress() ma.Multiaddr {
 	if mi.stream == nil {
 		return nil
 	}
-	return mi.stream.Conn().RemoteMultiaddr()
+
+	addrInfo := peer.AddrInfo{
+		ID:    mi.stream.Conn().RemotePeer(),
+		Addrs: []ma.Multiaddr{mi.stream.Conn().RemoteMultiaddr()},
+	}
+	
+	fullAddrs, err := peer.AddrInfoToP2pAddrs(&addrInfo)
+	if err != nil || len(fullAddrs) == 0 {
+		log.Fatalf("MI_GetRemoteAddress: Failed to convert to full multiaddr: %v", err)
+	}
+	
+	return fullAddrs[0]
 }
 
 func (mp *MessagingProtocol) SetInitiator(initiator *MessagingInitiator) {

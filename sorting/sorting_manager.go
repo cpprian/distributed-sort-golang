@@ -218,7 +218,7 @@ func (sm *SortingManager) GetAllItems() []int64 {
 }
 
 func (sm *SortingManager) ProcessMessage(msg messages.IMessage, controller networks.MessagingController) {
-	log.Printf("Processing message of type %T from %s\n", msg, controller.GetRemoteAddress())
+	log.Printf("ProcessMessage: Processing message of type %T from %s\n", msg, controller.GetRemoteAddress())
 
 	switch m := msg.(type) {
 	case *messages.CornerItemChangeMessage:
