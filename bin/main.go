@@ -29,7 +29,7 @@ func main() {
 	}
 
 	sortingManager.SetHost(host)
-	log.Println("Host set with address:", host.Host.Network().ListenAddresses()[0])
+	log.Println("Host set with address:", host.Host.Addrs(), "ID:", host.Host.ID())
 
 	var targetAddr ma.Multiaddr
 	if len(os.Args) > 1 {
@@ -45,8 +45,8 @@ func main() {
 	}
 
 	sortingManager.Activate(targetAddr)
-	log.Println("Activated node with ID:", sortingManager.ID, "and address:", sortingManager.Host.Host.Network().ListenAddresses()[0])
-
+	log.Println("Activated node with ID:", sortingManager.ID, "and address:", sortingManager.Host.Host.Addrs())
+	
 	for range 3 {
 		sortingManager.AddItem(int64(rand.Intn(100)))
 	}

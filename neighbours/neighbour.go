@@ -15,4 +15,3 @@ func NewNeighbour(multiaddr ma.Multiaddr, id int64) *Neighbour {
 		ID:        id,
 	}
 }
-

@@ -19,12 +19,15 @@ func (sm *SortingManager) AddItem(item int64) {
 
 	if len(sm.Items) > 0 {
 		if item < sm.GetFirstItem() {
+			log.Println("Item is less than first item, sending message to left neighbour")
 			sm.sendMessageOnCornerItemChange(sm.GetLeftNeighbour(), item)
 		}
 		if item > sm.GetLastItem() {
+			log.Println("Item is greater than last item, sending message to right neighbour")
 			sm.sendMessageOnCornerItemChange(sm.GetRightNeighbour(), item)
 		}
 	} else {
+		log.Println("No items in the list, sending messages to both neighbours")
 		sm.sendMessageOnCornerItemChange(sm.GetLeftNeighbour(), item)
 		sm.sendMessageOnCornerItemChange(sm.GetRightNeighbour(), item)
 	}
@@ -137,6 +140,7 @@ func (sm *SortingManager) OrderItemsExchange(controller networks.MessagingContro
 
 		select {
 		case msg := <-respChan:
+			log.Printf("OrderItemsExchange received response: %v", msg)
 			reposnse, ok := msg.(messages.ItemExchangeMessage)
 			if !ok {
 				log.Printf("Unexpected response type: %T", msg)
@@ -151,8 +155,10 @@ func (sm *SortingManager) OrderItemsExchange(controller networks.MessagingContro
 
 			sm.mu.Lock()
 			if neighbourId > sm.ID {
+				log.Printf("Neighbour ID is greater than local ID, appending offered item %d to the end of the list", reposnse.GetOfferedItem())
 				sm.Items = append(sm.Items, reposnse.GetOfferedItem())
 			} else {
+				log.Printf("Neighbour ID is less than or equal to local ID, prepending offered item %d to the start of the list", reposnse.GetOfferedItem())
 				sm.Items = append([]int64{reposnse.GetOfferedItem()}, sm.Items...)
 			}
 			sort.Slice(sm.Items, func(i, j int) bool {
@@ -171,6 +177,7 @@ func (sm *SortingManager) OrderItemsExchange(controller networks.MessagingContro
 			sm.mu.Unlock()
 		}
 	}()
+	log.Printf("OrderItemsExchange initiated for offered item %d, wanted item %d, neighbour ID %d, transaction ID %s", offeredItem, wantedItem, neighbourId, transactionId)
 }
 
 func (sm *SortingManager) ProcessCornerItemChange(msg messages.CornerItemChangeMessage, controller networks.MessagingController) {
@@ -180,11 +187,15 @@ func (sm *SortingManager) ProcessCornerItemChange(msg messages.CornerItemChangeM
 	defer sm.mu.Unlock()
 
 	if msg.SenderID > sm.ID {
+		log.Printf("ProcessCornerItemChange: Sender ID %d is greater than local ID %d\n", msg.SenderID, sm.ID)
 		if sm.GetLastItem() > msg.Item {
+			log.Printf("Exchanging items: local last item %d is greater than incoming item %d\n", sm.GetLastItem(), msg.Item)
 			sm.OrderItemsExchange(controller, sm.GetLastItem(), msg.Item, msg.SenderID, msg.GetTransactionID())
 		}
 	} else {
+		log.Printf("ProcessCornerItemChange: Sender ID %d is less than or equal to local ID %d\n", msg.SenderID, sm.ID)
 		if sm.GetFirstItem() < msg.Item {
+			log.Printf("Exchanging items: local first item %d is less than incoming item %d\n", sm.GetFirstItem(), msg.Item)
 			sm.OrderItemsExchange(controller, sm.GetFirstItem(), msg.Item, msg.SenderID, msg.GetTransactionID())
 		}
 	}

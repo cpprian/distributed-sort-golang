@@ -10,6 +10,7 @@ import (
 	"github.com/cpprian/distributed-sort-golang/neighbours"
 	"github.com/cpprian/distributed-sort-golang/networks"
 	"github.com/cpprian/distributed-sort-golang/utils"
+	peer "github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 )
 
@@ -39,8 +40,17 @@ func (sm *SortingManager) SetHost(host *networks.Libp2pHost) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	sm.Host = host
-	sm.Self = neighbours.NewNeighbour(host.Host.Network().ListenAddresses()[0], 0)
-	log.Printf("Host set with address: %s and ID: %d\n", sm.Host.Host.Network().ListenAddresses()[0], sm.Self.ID)
+
+	addrInfo := peer.AddrInfo{
+		ID:    host.Host.ID(),
+		Addrs: host.Host.Addrs(),
+	}
+	fullAddrs, err := peer.AddrInfoToP2pAddrs(&addrInfo)
+	if err != nil || len(fullAddrs) == 0 {
+		log.Fatalf("Failed to convert to full multiaddr: %v", err)
+	}
+	sm.Self = neighbours.NewNeighbour(fullAddrs[0], 0)
+	log.Printf("Host set with address: %s and ID: %d\n", sm.Host.Host.Addrs()[0], sm.Self.ID)
 }
 
 func (sm *SortingManager) SetMessagingController(messaging networks.MessagingController) {
@@ -211,9 +221,9 @@ func (sm *SortingManager) ProcessMessage(msg messages.IMessage, controller netwo
 	log.Printf("Processing message of type %T from %s\n", msg, controller.GetRemoteAddress())
 
 	switch m := msg.(type) {
-	case messages.CornerItemChangeMessage:
+	case *messages.CornerItemChangeMessage:
 		log.Printf("Received CornerItemChangeMessage: %s", msg)
-		sm.ProcessCornerItemChange(m, controller)
+		sm.ProcessCornerItemChange(*m, controller)
 	case *messages.NodesListMessage:
 		log.Println("Received NodesListMessage, updating participating nodes...")
 		response := messages.NewNodesListResponseMessage(sm.ParticipatingNodes, m.GetTransactionID())
@@ -231,13 +241,14 @@ func (sm *SortingManager) ProcessMessage(msg messages.IMessage, controller netwo
 				sm.ParticipatingNodes[id] = neighbour
 			}
 		}
-	case messages.AnnounceSelfMessage:
+	case *messages.AnnounceSelfMessage:
 		log.Printf("Received AnnounceSelfMessage from %d: %s", m.ID, m.ListeningAddress)
 		neighbour := neighbours.NewNeighbour(m.ListeningAddress, m.ID)
 		sm.mu.Lock()
 		defer sm.mu.Unlock()
 		sm.ParticipatingNodes[m.ID] = *neighbour
-	case messages.GetItemsMessage:
+		log.Println("Participating nodes: ", sm.ParticipatingNodes)
+	case *messages.GetItemsMessage:
 		log.Println("Received GetItemsMessage, sending items...")
 		sm.mu.Lock()
 		defer sm.mu.Unlock()
@@ -251,6 +262,7 @@ func (sm *SortingManager) ProcessMessage(msg messages.IMessage, controller netwo
 }
 
 func (sm *SortingManager) GetItems() []int64 {
+	log.Println("Retrieving current items...")
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	return sm.Items

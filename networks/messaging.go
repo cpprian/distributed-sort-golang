@@ -110,18 +110,19 @@ func (mi *MessagingInitiator) Run() {
 			continue
 		}
 	
-		if info.RequiresResponse {
-			log.Println("Received message with transaction ID: ", msg.GetTransactionID())
-			if ch, ok := mi.sentRequests[msg.GetTransactionID()]; ok {
-				ch <- msg
-				log.Println("Sent response for transaction ID: ", msg.GetTransactionID())
-				delete(mi.sentRequests, msg.GetTransactionID())
-			} else {
-				log.Println("No future found for transaction ID: ", msg.GetTransactionID())
-			}
+		mi.mu.Lock()
+		ch, found := mi.sentRequests[msg.GetTransactionID()]
+		if found {
+			ch <- msg
+			log.Println("Received response for transaction ID:", msg.GetTransactionID())
+			delete(mi.sentRequests, msg.GetTransactionID())
+			mi.mu.Unlock()
+			continue
 		}
+		mi.mu.Unlock()
 
-		log.Println("Processing message of type: ", msg.GetMessageType())	
+		// If no future channel was found, process the message
+		log.Println("Processing message of type:", msg.GetMessageType())
 		go mi.processor(msg, mi)
 	}
 }
@@ -201,12 +202,14 @@ func (mi *MessagingInitiator) RetrieveParticipatingNodes(
 	msg := messages.NewNodesListMessage()
 	future := controller.SendMessage(msg)
 
+	log.Println("Sent NodesListMessage, waiting for response...")
 	select {
 	case responseMsg := <-future:
-		response, ok := responseMsg.(messages.NodesListResponseMessage)
+		response, ok := responseMsg.(*messages.NodesListResponseMessage)
 		if !ok {
 			return nil, fmt.Errorf("unexpected message type: %T", responseMsg)
 		}
+		log.Println("Received nodes list response:", response.GetParticipatingNodes())
 		return response.GetParticipatingNodes(), nil
 	case <-time.After(300 * time.Second):
 		log.Println("Timeout waiting for nodes list response")
@@ -219,7 +222,7 @@ func (mi *MessagingInitiator) GetMessageProcessor() UnknownMessageProcessor {
 }
 
 func (mi *MessagingInitiator) GetProtocolID() protocol.ID {
-	return mi.stream.Protocol()
+	return ProtocolID
 }
 
 func (mi *MessagingInitiator) GetRemoteAddress() ma.Multiaddr {
@@ -251,9 +254,6 @@ func (mp *MessagingProtocol) GetMessageProcessor() UnknownMessageProcessor {
 }
 
 func (mp *MessagingProtocol) GetProtocolID() protocol.ID {
-	if mp.initiator != nil {
-		return mp.initiator.GetProtocolID()
-	}
 	return ProtocolID
 }
 
@@ -280,7 +280,7 @@ func (mp *MessagingProtocol) RetrieveParticipatingNodes(
 
 	select {
 	case responseMsg := <-future:
-		response, ok := responseMsg.(messages.NodesListResponseMessage)
+		response, ok := responseMsg.(*messages.NodesListResponseMessage)
 		if !ok {
 			return nil, fmt.Errorf("unexpected message type: %T", responseMsg)
 		}
@@ -330,7 +330,9 @@ func (mp *MessagingProtocol) Dial(host host.Host, addr ma.Multiaddr) (*Messaging
 	}
 
 	initiator := NewMessagingInitiator(mp.processor, stream)
+	mp.initiator = initiator
 	go initiator.Run()
 
+	log.Printf("Successfully dialed peer %s with protocol %s", peerInfo.ID, mp.GetProtocolID())
 	return initiator, nil
 }

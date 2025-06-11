@@ -5,41 +5,18 @@ import (
 	"reflect"
 )
 
-type MessageType int
+type MessageType string
 
 const (
-	ItemExchange MessageType = iota
-	CornerItemChange
-	NodesList
-	NodesListResponse
-	AnnounceSelf
-	GetItems
-	Confirm
-	Error
+	ItemExchange      MessageType = "ITEM_EXCHANGE"
+	CornerItemChange  MessageType = "CORNER_ITEM_CHANGE"
+	NodesList         MessageType = "NODES_LIST"
+	NodesListResponse MessageType = "NODES_LIST_RESPONSE"
+	AnnounceSelf      MessageType = "ANNOUNCE_SELF"
+	GetItems          MessageType = "GET_ITEMS"
+	Confirm           MessageType = "CONFIRM"
+	Error             MessageType = "ERROR"
 )
-
-func (mt MessageType) String() string {
-	switch mt {
-	case ItemExchange:
-		return "ItemExchange"
-	case CornerItemChange:
-		return "CornerItemChange"
-	case NodesList:
-		return "NodesList"
-	case NodesListResponse:
-		return "NodesListResponse"
-	case AnnounceSelf:
-		return "AnnounceSelf"
-	case GetItems:
-		return "GetItems"
-	case Confirm:
-		return "Confirm"
-	case Error:
-		return "Error"
-	default:
-		return "UnknownMessageType"
-	}
-}
 
 type MessageInfo struct {
 	GoType           reflect.Type

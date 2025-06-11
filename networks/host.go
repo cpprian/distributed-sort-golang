@@ -30,7 +30,7 @@ func NewEmptyLibp2pHost() *Libp2pHost {
 
 func NewLibp2pHost(messagingProtocol *MessagingProtocol) (*Libp2pHost, error) {
 	log.Println("Creating new Libp2pHost")
-	listenAddr, _ := ma.NewMultiaddr("/ip4/0.0.0.0/tcp/0")
+	listenAddr, _ := ma.NewMultiaddr("/ip4/127.0.0.1/tcp/0")
 
 	prvKey, _, err := crypto.GenerateEd25519Key(nil)
 	if err != nil {
@@ -53,6 +53,8 @@ func NewLibp2pHost(messagingProtocol *MessagingProtocol) (*Libp2pHost, error) {
 
 	h.SetStreamHandler(protocol.ID(ProtocolID), messagingProtocol.HandleStream)
 	log.Println("Handler set for protocol:", ProtocolID)
+	// print host structure
+	log.Printf("Libp2pHost created with ID: %s and listening on: %v\n", h.ID(), h.Addrs())
 
 	addrInfo := peer.AddrInfo{
 		ID:    host.Host.ID(),
