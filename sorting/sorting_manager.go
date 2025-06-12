@@ -102,7 +102,7 @@ func (sm *SortingManager) AnnounceSelf() {
 
 		msg := messages.NewAnnounceSelfMessage(sm.ID, sm.Self.Multiaddr)
 		go func(c networks.MessagingController, m messages.IMessage) {
-			defer c.Close()
+			log.Printf("AnnounceSelf: Sending AnnounceSelfMessage to %v\n", neighbour.Multiaddr.String())
 
 			select {
 			case <-c.SendMessage(m):
@@ -204,13 +204,12 @@ func (sm *SortingManager) GetAllItems() []int64 {
 				log.Printf("Received items from neighbour %d: %v", id, itemsMsg.Items)
 				allItems = append(allItems, itemsMsg.Items...)
 			} else {
-				log.Printf("Unexpected response type from neighbour %d: %T", id, response)
+				log.Printf("GetAllItems: Unexpected response type from neighbour %d: %T", id, response)
 			}
 		case <-time.After(3 * time.Second):
 			log.Printf("Timeout while waiting for items from neighbour %d", id)
 		}
 
-		controller.Close()
 		log.Printf("Finished retrieving items from neighbour %d\n", id)
 	}
 
@@ -227,7 +226,14 @@ func (sm *SortingManager) ProcessMessage(msg messages.IMessage, controller netwo
 	case *messages.NodesListMessage:
 		log.Println("Received NodesListMessage, updating participating nodes...")
 		response := messages.NewNodesListResponseMessage(sm.ParticipatingNodes, m.GetTransactionID())
-		controller.SendMessage(response)
+		log.Printf("Sending NodesListResponseMessage with list of %d participating nodes", len(sm.ParticipatingNodes))
+		future := controller.SendMessage(response)
+		select {
+		case <-future:
+			log.Println("NodesListResponseMessage sent successfully.")
+		case <-time.After(3 * time.Second):
+			log.Println("Timeout while sending NodesListResponseMessage.")
+		}
 	case *messages.NodesListResponseMessage:
 		log.Println("Received NodesListResponseMessage, updating participating nodes...")
 		sm.mu.Lock()

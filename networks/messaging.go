@@ -114,7 +114,8 @@ func (mi *MessagingInitiator) Run() {
 		ch, found := mi.sentRequests[msg.GetTransactionID()]
 		if found {
 			ch <- msg
-			log.Println("Received response for transaction ID:", msg.GetTransactionID())
+			log.Println("Run: Received response for transaction ID:", msg.GetTransactionID())
+			log.Println("Run: Message content:", msg)
 			delete(mi.sentRequests, msg.GetTransactionID())
 			mi.mu.Unlock()
 			continue
@@ -129,34 +130,35 @@ func (mi *MessagingInitiator) Run() {
 
 func (mi *MessagingInitiator) SendMessage(msg messages.IMessage) <-chan messages.IMessage {
 	mi.mu.Lock()
-	defer mi.mu.Unlock()
-
 	future := make(chan messages.IMessage, 1)
 	mi.sentRequests[msg.GetTransactionID()] = future
+	mi.mu.Unlock()
 
 	encoder := json.NewEncoder(mi.stream)
-	log.Println("Writing to stream:", msg.GetTransactionID())
+	log.Println("SendMessage: Writing to stream:", msg.GetTransactionID())
+	log.Println("SendMessage: Message content:", msg)
 	err := encoder.Encode(msg)
 	if err != nil {
-		log.Println("Failed to write to stream:", err)
+		log.Println("SendMessage: Failed to write to stream:", err)
 		close(future)
 		delete(mi.sentRequests, msg.GetTransactionID())
 		return future
 	}
 
-	log.Println("Sent message with transaction ID: ", msg.GetTransactionID())
-	log.Println("Message content:", msg)
+	log.Println("SendMessage: Sent message with transaction ID: ", msg.GetTransactionID())
+	log.Println("SendMessage: Message content:", msg)
 
 	if messages.MessageRegistry[msg.GetMessageType()].RequiresResponse {
 		go func() {
 			select {
 			case <-future:
-				log.Println("Received response for transaction ID: ", msg.GetTransactionID())
+				log.Println("SendMessage: Received response for transaction ID: ", msg.GetTransactionID())
+				log.Println("SendMessage: Closing future channel for transaction ID: ", msg.GetTransactionID())
 				mi.mu.Lock()
 				delete(mi.sentRequests, msg.GetTransactionID())
 				mi.mu.Unlock()
 			case <-time.After(2 * time.Second):
-				log.Println("Stream closed before response for transaction ID: ", msg.GetTransactionID())
+				log.Println("SendMessage: Stream closed before response for transaction ID: ", msg.GetTransactionID())
 				close(future)
 				mi.mu.Lock()
 				delete(mi.sentRequests, msg.GetTransactionID())
@@ -165,14 +167,14 @@ func (mi *MessagingInitiator) SendMessage(msg messages.IMessage) <-chan messages
 		}()
 	}
 
-	log.Println("Future created for transaction ID: ", msg.GetTransactionID())
+	log.Println("SendMessage: Future created for transaction ID: ", msg.GetTransactionID())
 	return future
 }
 
 func (mi *MessagingInitiator) Close() {
 	mi.mu.Lock()
 	defer mi.mu.Unlock()
-	log.Println("Closing MessagingInitiator...")
+	log.Println("Close: Closing MessagingInitiator...")
 
 	for id, future := range mi.sentRequests {
 		close(future)
@@ -181,9 +183,9 @@ func (mi *MessagingInitiator) Close() {
 	mi.sentRequests = make(map[uuid.UUID]chan messages.IMessage)
 
 	if err := mi.stream.Close(); err != nil {
-		log.Println("Error closing stream:", err)
+		log.Println("Close: Error closing stream:", err)
 	} else {
-		log.Println("Stream closed successfully.")
+		log.Println("Close: Stream closed successfully.")
 	}
 }
 
@@ -193,27 +195,27 @@ func (mi *MessagingInitiator) RetrieveParticipatingNodes(
 	protocolID protocol.ID,
 	processor UnknownMessageProcessor,
 ) (map[int64]neighbours.Neighbour, error) {
-	log.Println("Retrieving participating nodes...")
+	log.Println("RetrieveParticipatingNodes: Retrieving participating nodes...")
 	controller, err := DialByMultiaddr(host, knownParticipant, protocolID, processor)
 	if err != nil {
-		return nil, fmt.Errorf("failed to dial by multiaddr: %w", err)
+		return nil, fmt.Errorf("RetrieveParticipatingNodes: failed to dial by multiaddr: %w", err)
 	}
 
 	msg := messages.NewNodesListMessage()
 	future := controller.SendMessage(msg)
 
-	log.Println("Sent NodesListMessage, waiting for response...")
+	log.Println("RetrieveParticipatingNodes: Sent NodesListMessage, waiting for response...")
 	select {
 	case responseMsg := <-future:
 		response, ok := responseMsg.(*messages.NodesListResponseMessage)
 		if !ok {
-			return nil, fmt.Errorf("unexpected message type: %T", responseMsg)
+			return nil, fmt.Errorf("RetrieveParticipatingNodes: unexpected message type: %T", responseMsg)
 		}
-		log.Println("Received nodes list response:", response.GetParticipatingNodes())
+		log.Println("RetrieveParticipatingNodes: Received nodes list response:", response.GetParticipatingNodes())
 		return response.GetParticipatingNodes(), nil
-	case <-time.After(300 * time.Second):
-		log.Println("Timeout waiting for nodes list response")
-		return nil, fmt.Errorf("timeout waiting for nodes list response")
+	case <-time.After(3 * time.Second):
+		log.Println("RetrieveParticipatingNodes: Timeout waiting for nodes list response")
+		return nil, fmt.Errorf("RetrieveParticipatingNodes: timeout waiting for nodes list response")
 	}
 }
 
@@ -283,7 +285,7 @@ func (mp *MessagingProtocol) RetrieveParticipatingNodes(
 ) (map[int64]neighbours.Neighbour, error) {
 	initiator, err := mp.Dial(host, knownParticipant)
 	if err != nil {
-		return nil, fmt.Errorf("failed to dial known participant: %w", err)
+		return nil, fmt.Errorf("RetrieveParticipatingNodes: failed to dial known participant: %w", err)
 	}
 
 	msg := messages.NewNodesListMessage()
@@ -293,27 +295,27 @@ func (mp *MessagingProtocol) RetrieveParticipatingNodes(
 	case responseMsg := <-future:
 		response, ok := responseMsg.(*messages.NodesListResponseMessage)
 		if !ok {
-			return nil, fmt.Errorf("unexpected message type: %T", responseMsg)
+			return nil, fmt.Errorf("RetrieveParticipatingNodes: unexpected message type: %T", responseMsg)
 		}
 		return response.GetParticipatingNodes(), nil
 	case <-time.After(3 * time.Second):
-		return nil, fmt.Errorf("timeout waiting for nodes list response")
+		return nil, fmt.Errorf("RetrieveParticipatingNodes: timeout waiting for nodes list response")
 	}
 }
 
 func (mp *MessagingProtocol) Dial(host host.Host, addr ma.Multiaddr) (*MessagingInitiator, error) {
 	peerInfo, err := peer.AddrInfoFromP2pAddr(addr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid multiaddr (can't parse peer info): %w", err)
+		return nil, fmt.Errorf("Dial: invalid multiaddr (can't parse peer info): %w", err)
 	}
 
-	log.Printf("Dialing peer %s at %v\n", peerInfo.ID, peerInfo.Addrs)
+	log.Printf("Dial: Dialing peer %s at %v\n", peerInfo.ID, peerInfo.Addrs)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3 * time.Second)
 	defer cancel()
 
 	if err := host.Connect(ctx, *peerInfo); err != nil {
-		return nil, fmt.Errorf("failed to connect to peer %s: %w", peerInfo.ID, err)
+		return nil, fmt.Errorf("Dial: failed to connect to peer %s: %w", peerInfo.ID, err)
 	}
 
 	var stream network.Stream
@@ -322,28 +324,28 @@ func (mp *MessagingProtocol) Dial(host host.Host, addr ma.Multiaddr) (*Messaging
 
 		supported, err := host.Peerstore().SupportsProtocols(peerInfo.ID, mp.GetProtocolID())
 		if err != nil {
-			log.Printf("[Attempt %d] Could not determine supported protocols yet: %v", i, err)
+			log.Printf("Dial: [Attempt %d] Could not determine supported protocols yet: %v", i, err)
 		} else {
-			log.Printf("[Attempt %d] Peer %s supports: %v", i, peerInfo.ID, supported)
+			log.Printf("Dial: [Attempt %d] Peer %s supports: %v", i, peerInfo.ID, supported)
 		}
 
 		stream, err = host.NewStream(context.Background(), peerInfo.ID, mp.GetProtocolID())
 		if err == nil {
-			log.Printf("Successfully opened stream on attempt %d", i)
+			log.Printf("Dial: Successfully opened stream on attempt %d", i)
 			break
 		} else {
-			log.Printf("[Attempt %d] Failed to open stream: %v", i, err)
+			log.Printf("Dial: [Attempt %d] Failed to open stream: %v", i, err)
 		}
 	}
 
 	if stream == nil {
-		return nil, fmt.Errorf("failed to open stream after retries")
+		return nil, fmt.Errorf("Dial: failed to open stream after retries")
 	}
 
 	initiator := NewMessagingInitiator(mp.processor, stream)
 	mp.initiator = initiator
 	go initiator.Run()
 
-	log.Printf("Successfully dialed peer %s with protocol %s", peerInfo.ID, mp.GetProtocolID())
+	log.Printf("Dial: Successfully dialed peer %s with protocol %s", peerInfo.ID, mp.GetProtocolID())
 	return initiator, nil
 }

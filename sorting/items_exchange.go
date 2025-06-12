@@ -13,21 +13,21 @@ import (
 )
 
 func (sm *SortingManager) AddItem(item int64) {
-	log.Println("Adding item: ", item)
+	log.Println("AddItem: Adding item: ", item)
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
 	if len(sm.Items) > 0 {
 		if item < sm.GetFirstItem() {
-			log.Println("Item is less than first item, sending message to left neighbour")
+			log.Println("AddItem: Item is less than first item, sending message to left neighbour")
 			sm.sendMessageOnCornerItemChange(sm.GetLeftNeighbour(), item)
 		}
 		if item > sm.GetLastItem() {
-			log.Println("Item is greater than last item, sending message to right neighbour")
+			log.Println("AddItem: Item is greater than last item, sending message to right neighbour")
 			sm.sendMessageOnCornerItemChange(sm.GetRightNeighbour(), item)
 		}
 	} else {
-		log.Println("No items in the list, sending messages to both neighbours")
+		log.Println("AddItem: No items in the list, sending messages to both neighbours")
 		sm.sendMessageOnCornerItemChange(sm.GetLeftNeighbour(), item)
 		sm.sendMessageOnCornerItemChange(sm.GetRightNeighbour(), item)
 	}
@@ -36,13 +36,13 @@ func (sm *SortingManager) AddItem(item int64) {
 	sort.Slice(sm.Items, func(i, j int) bool {
 		return sm.Items[i] < sm.Items[j]
 	})
-	log.Printf("Added item: %d. Local items after addition: %v", item, sm.Items)
+	log.Printf("AddItem: Added item: %d. Local items after addition: %v", item, sm.Items)
 }
 
 func (sm *SortingManager) sendMessageOnCornerItemChange(neighbour *neighbours.Neighbour, item int64) {
-	log.Println("Sending message on corner item change for item:", item)
+	log.Println("sendMessageOnCornerItemChange: Sending message on corner item change for item:", item)
 	if neighbour == nil {
-		log.Println("Neighbour is nil, cannot send message on corner item change")
+		log.Println("sendMessageOnCornerItemChange: Neighbour is nil, cannot send message on corner item change")
 		return
 	}
 
@@ -51,10 +51,9 @@ func (sm *SortingManager) sendMessageOnCornerItemChange(neighbour *neighbours.Ne
 	go func() {
 		controller, err := networks.DialByMultiaddr(sm.Host.Host, neighbour.Multiaddr, sm.Messaging.GetProtocolID(), sm.Messaging.GetMessageProcessor())
 		if err != nil {
-			log.Printf("Failed to dial neighbour %s: %v", neighbour.Multiaddr.String(), err)
+			log.Printf("sendMessageOnCornerItemChange: Failed to dial neighbour %s: %v", neighbour.Multiaddr.String(), err)
 			return
 		}
-		defer controller.Close()
 
 		responseChan := controller.SendMessage(msg)
 
@@ -63,10 +62,10 @@ func (sm *SortingManager) sendMessageOnCornerItemChange(neighbour *neighbours.Ne
 			if ItemExchangeMsg, ok := response.(messages.ItemExchangeMessage); ok {
 				sm.RespondToItemExchange(ItemExchangeMsg, controller)
 			} else {
-				log.Printf("Unexpected response type: %T", response)
+				log.Printf("sendMessageOnCornerItemChange: Unexpected response type: %T", response)
 			}
 		case <-time.After(3 * time.Second):
-			log.Printf("Timeout while waiting for response from neighbour %s", neighbour.Multiaddr.String())
+			log.Printf("sendMessageOnCornerItemChange: Timeout while waiting for response from neighbour %s", neighbour.Multiaddr.String())
 		}
 	}()
 }
@@ -119,7 +118,7 @@ func (sm *SortingManager) RespondToItemExchange(msg messages.ItemExchangeMessage
 func (sm *SortingManager) OrderItemsExchange(controller networks.MessagingController, offeredItem int64, wantedItem int64, neighbourId int64, transactionId uuid.UUID) {
 	log.Printf("Ordering items exchange: offeredItem=%d, wantedItem=%d, neighbourId=%d, transactionId=%s", offeredItem, wantedItem, neighbourId, transactionId)
 
-	sm.mu.Lock()
+	// sm.mu.Lock()
 	removed := false
 	for i, v := range sm.Items {
 		if v == offeredItem {
@@ -128,7 +127,7 @@ func (sm *SortingManager) OrderItemsExchange(controller networks.MessagingContro
 			break
 		}
 	}
-	sm.mu.Unlock()
+	// sm.mu.Unlock()
 
 	if !removed {
 		log.Printf("Offered item %d not found in local items: %v", offeredItem, sm.Items)
@@ -143,7 +142,7 @@ func (sm *SortingManager) OrderItemsExchange(controller networks.MessagingContro
 			log.Printf("OrderItemsExchange received response: %v", msg)
 			reposnse, ok := msg.(messages.ItemExchangeMessage)
 			if !ok {
-				log.Printf("Unexpected response type: %T", msg)
+				log.Printf("OrderItemsExchange: Unexpected response type: %T", msg)
 				sm.mu.Lock()
 				sm.Items = append(sm.Items, offeredItem)
 				sort.Slice(sm.Items, func(i, j int) bool {
