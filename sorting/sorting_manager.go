@@ -260,6 +260,11 @@ func (sm *SortingManager) ProcessMessage(msg messages.IMessage, controller netwo
 		defer sm.mu.Unlock()
 		response := messages.NewGetItemsMessageWithTransactionID(sm.Items, m.GetTransactionID())
 		controller.SendMessage(response)
+	case *messages.ConfirmMessage:
+		log.Printf("Received ConfirmMessage: %s", msg)
+	case *messages.ItemExchangeMessage:
+		log.Printf("Received ItemExchangeMessage: %s", msg)
+		sm.OrderItemsExchange(controller, m.OfferedItem, m.WantedItem, m.SenderID, m.GetTransactionID())
 	default:
 		log.Printf("Unknown message type: %T\n", msg)
 	}

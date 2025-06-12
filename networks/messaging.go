@@ -94,7 +94,7 @@ func (mi *MessagingInitiator) Run() {
 	
 		info, ok := messages.MessageRegistry[envelope.MessageType]
 		if !ok {
-			log.Println("Unknown message type received:", envelope.MessageType)
+			log.Println("Run: Unknown message type received:", envelope.MessageType)
 			continue
 		}
 	
@@ -121,10 +121,16 @@ func (mi *MessagingInitiator) Run() {
 			continue
 		}
 		mi.mu.Unlock()
-
-		// If no future channel was found, process the message
-		log.Println("Processing message of type:", msg.GetMessageType())
-		go mi.processor(msg, mi)
+		log.Println("Run: No future found for transaction ID:", msg.GetTransactionID())
+		if mi.processor != nil {
+			log.Println("Run: Processing message with custom processor")
+			mi.processor(msg, mi)
+		} else {
+			log.Println("Run: No processor set, ignoring message of type:", envelope.MessageType)
+		}
+		log.Println("Run: Processed message of type:", envelope.MessageType, "with transaction ID:", msg.GetTransactionID())
+		log.Println("Run: Message content:", msg)
+		log.Println("Run: Waiting for next message...")		
 	}
 }
 
@@ -343,7 +349,6 @@ func (mp *MessagingProtocol) Dial(host host.Host, addr ma.Multiaddr) (*Messaging
 	}
 
 	initiator := NewMessagingInitiator(mp.processor, stream)
-	mp.initiator = initiator
 	go initiator.Run()
 
 	log.Printf("Dial: Successfully dialed peer %s with protocol %s", peerInfo.ID, mp.GetProtocolID())

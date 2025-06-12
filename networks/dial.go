@@ -21,7 +21,7 @@ func DialMessagingController(h host.Host, peerID peer.ID, protocolID protocol.ID
 	}
 
 	controller := NewMessagingInitiator(processor, stream)
-	// TODO: add controller to a list of active controllers 
+	go controller.Run()
 	log.Println("Successfully dialed peer:", peerID)
 	return controller, nil
 }

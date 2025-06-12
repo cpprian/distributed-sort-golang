@@ -118,7 +118,6 @@ func (sm *SortingManager) RespondToItemExchange(msg messages.ItemExchangeMessage
 func (sm *SortingManager) OrderItemsExchange(controller networks.MessagingController, offeredItem int64, wantedItem int64, neighbourId int64, transactionId uuid.UUID) {
 	log.Printf("Ordering items exchange: offeredItem=%d, wantedItem=%d, neighbourId=%d, transactionId=%s", offeredItem, wantedItem, neighbourId, transactionId)
 
-	// sm.mu.Lock()
 	removed := false
 	for i, v := range sm.Items {
 		if v == offeredItem {
@@ -127,7 +126,6 @@ func (sm *SortingManager) OrderItemsExchange(controller networks.MessagingContro
 			break
 		}
 	}
-	// sm.mu.Unlock()
 
 	if !removed {
 		log.Printf("Offered item %d not found in local items: %v", offeredItem, sm.Items)
