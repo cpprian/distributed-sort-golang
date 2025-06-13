@@ -10,8 +10,8 @@ type NodesListResponseMessage struct {
 	ParticipatingNodes map[int64]neighbours.Neighbour `json:"participatingNodes"` // Maps node ID to Neighbour
 }
 
-func NewNodesListResponseMessage(participatingNodes map[int64]neighbours.Neighbour, transactionID uuid.UUID) NodesListResponseMessage {
-	return NodesListResponseMessage{
+func NewNodesListResponseMessage(participatingNodes map[int64]neighbours.Neighbour, transactionID uuid.UUID) *NodesListResponseMessage {
+	return &NodesListResponseMessage{
 		BaseMessage:        NewBaseMessageWithTransactionID(NodesListResponse, transactionID),
 		ParticipatingNodes: participatingNodes,
 	}

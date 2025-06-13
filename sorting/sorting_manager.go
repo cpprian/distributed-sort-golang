@@ -200,7 +200,7 @@ func (sm *SortingManager) GetAllItems() []int64 {
 		responseChan := controller.SendMessage(msg)
 		select {
 		case response := <-responseChan:
-			if itemsMsg, ok := response.(messages.GetItemsMessage); ok {
+			if itemsMsg, ok := response.(*messages.GetItemsMessage); ok {
 				log.Printf("Received items from neighbour %d: %v", id, itemsMsg.Items)
 				allItems = append(allItems, itemsMsg.Items...)
 			} else {
@@ -213,6 +213,10 @@ func (sm *SortingManager) GetAllItems() []int64 {
 		log.Printf("Finished retrieving items from neighbour %d\n", id)
 	}
 
+	allItems = append(sm.Items, allItems...)
+	sort.Slice(allItems, func(i, j int) bool {
+		return allItems[i] < allItems[j]
+	})
 	return allItems
 }
 
@@ -264,7 +268,8 @@ func (sm *SortingManager) ProcessMessage(msg messages.IMessage, controller netwo
 		log.Printf("Received ConfirmMessage: %s", msg)
 	case *messages.ItemExchangeMessage:
 		log.Printf("Received ItemExchangeMessage: %s", msg)
-		sm.OrderItemsExchange(controller, m.OfferedItem, m.WantedItem, m.SenderID, m.GetTransactionID())
+		// sm.OrderItemsExchange(controller, m.OfferedItem, m.WantedItem, m.SenderID, m.GetTransactionID())
+		// sm.RespondToItemExchange(*m, controller)
 	default:
 		log.Printf("Unknown message type: %T\n", msg)
 	}

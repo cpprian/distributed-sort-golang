@@ -8,7 +8,6 @@ import (
 	"github.com/cpprian/distributed-sort-golang/messages"
 	"github.com/cpprian/distributed-sort-golang/neighbours"
 	"github.com/cpprian/distributed-sort-golang/networks"
-	"github.com/cpprian/distributed-sort-golang/utils"
 	"github.com/google/uuid"
 )
 
@@ -59,7 +58,8 @@ func (sm *SortingManager) sendMessageOnCornerItemChange(neighbour *neighbours.Ne
 
 		select {
 		case response := <-responseChan:
-			if ItemExchangeMsg, ok := response.(messages.ItemExchangeMessage); ok {
+			log.Println("Response:", response, "\n")
+			if ItemExchangeMsg, ok := response.(*messages.ItemExchangeMessage); ok {
 				sm.RespondToItemExchange(ItemExchangeMsg, controller)
 			} else {
 				log.Printf("sendMessageOnCornerItemChange: Unexpected response type: %T", response)
@@ -70,7 +70,7 @@ func (sm *SortingManager) sendMessageOnCornerItemChange(neighbour *neighbours.Ne
 	}()
 }
 
-func (sm *SortingManager) RespondToItemExchange(msg messages.ItemExchangeMessage, controller networks.MessagingController) {
+func (sm *SortingManager) RespondToItemExchange(msg *messages.ItemExchangeMessage, controller networks.MessagingController) {
 	log.Printf("Responding to item exchange: %v", msg)
 
 	sm.mu.Lock()
@@ -131,6 +131,7 @@ func (sm *SortingManager) OrderItemsExchange(controller networks.MessagingContro
 		log.Printf("Offered item %d not found in local items: %v", offeredItem, sm.Items)
 		return
 	}
+	log.Printf("Offered item %d removed from local items: %v", offeredItem, sm.Items)
 
 	go func() {
 		respChan := controller.SendMessage(messages.NewItemExchangeMessageWithID(offeredItem, wantedItem, transactionId, sm.ID))
@@ -138,7 +139,7 @@ func (sm *SortingManager) OrderItemsExchange(controller networks.MessagingContro
 		select {
 		case msg := <-respChan:
 			log.Printf("OrderItemsExchange received response: %v", msg)
-			reposnse, ok := msg.(messages.ItemExchangeMessage)
+			reposnse, ok := msg.(*messages.ItemExchangeMessage)
 			if !ok {
 				log.Printf("OrderItemsExchange: Unexpected response type: %T", msg)
 				sm.mu.Lock()
@@ -147,6 +148,7 @@ func (sm *SortingManager) OrderItemsExchange(controller networks.MessagingContro
 					return sm.Items[i] < sm.Items[j]
 				})
 				sm.mu.Unlock()
+				log.Println("Reverted items after unexpected response type:", sm.Items)
 				return
 			}
 
@@ -178,27 +180,36 @@ func (sm *SortingManager) OrderItemsExchange(controller networks.MessagingContro
 }
 
 func (sm *SortingManager) ProcessCornerItemChange(msg messages.CornerItemChangeMessage, controller networks.MessagingController) {
-	log.Printf("Processing corner item change: %v\n", msg)
+	log.Printf("ProcessCornerItemChange: Processing corner item change: %v\n", msg)
 
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
+	sent := false
 	if msg.SenderID > sm.ID {
 		log.Printf("ProcessCornerItemChange: Sender ID %d is greater than local ID %d\n", msg.SenderID, sm.ID)
 		if sm.GetLastItem() > msg.Item {
 			log.Printf("Exchanging items: local last item %d is greater than incoming item %d\n", sm.GetLastItem(), msg.Item)
 			sm.OrderItemsExchange(controller, sm.GetLastItem(), msg.Item, msg.SenderID, msg.GetTransactionID())
+			sent = true
+		} else {
+			log.Printf("No exchange needed: local last item %d is not greater than incoming item %d\n", sm.GetLastItem(), msg.Item)
+			return 
 		}
 	} else {
 		log.Printf("ProcessCornerItemChange: Sender ID %d is less than or equal to local ID %d\n", msg.SenderID, sm.ID)
 		if sm.GetFirstItem() < msg.Item {
 			log.Printf("Exchanging items: local first item %d is less than incoming item %d\n", sm.GetFirstItem(), msg.Item)
 			sm.OrderItemsExchange(controller, sm.GetFirstItem(), msg.Item, msg.SenderID, msg.GetTransactionID())
+			sent = true
+		} else {
+			log.Printf("No exchange needed: local first item %d is not less than incoming item %d\n", sm.GetFirstItem(), msg.Item)
+			return 
 		}
 	}
 
-	if !utils.Contains(sm.Items, msg.Item) {
-		log.Printf("Item %d not found in local items: %v", msg.Item, sm.Items)
+	if !sent {
+		log.Printf("ProcessCornerItemChange: Offered item %d not found in local items: %v", msg.Item, sm.Items)
 		controller.SendMessage(messages.NewConfirmMessage(msg.GetTransactionID()))
 		return
 	}

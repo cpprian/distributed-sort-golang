@@ -13,3 +13,10 @@ func NewCornerItemChangeMessage(item int64, senderID int64) CornerItemChangeMess
 		SenderID:    senderID,
 	}
 }
+
+func (m CornerItemChangeMessage) GetItem() int64 {
+	return m.Item
+}
+func (m CornerItemChangeMessage) GetSenderID() int64 {
+	return m.SenderID
+}

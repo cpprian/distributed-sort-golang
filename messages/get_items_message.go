@@ -22,3 +22,7 @@ func NewGetItemsMessageWithTransactionID(items []int64, transactionID uuid.UUID)
 		Items:       items,
 	}
 }
+
+func (m GetItemsMessage) GetItems() []int64 {
+	return m.Items
+}

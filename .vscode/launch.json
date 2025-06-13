@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch Package",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/bin",
+            "args": [
+                "/ip4/127.0.0.1/tcp/64958/p2p/12D3KooWQJ3AnKtJNbie58KSYDRFpXPyoo9H2vmUQv2vspLcM3p2"
+            ]
+        }
+    ]
+}

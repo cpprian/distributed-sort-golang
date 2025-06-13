@@ -113,24 +113,23 @@ func (mi *MessagingInitiator) Run() {
 		mi.mu.Lock()
 		ch, found := mi.sentRequests[msg.GetTransactionID()]
 		if found {
-			ch <- msg
-			log.Println("Run: Received response for transaction ID:", msg.GetTransactionID())
-			log.Println("Run: Message content:", msg)
 			delete(mi.sentRequests, msg.GetTransactionID())
 			mi.mu.Unlock()
-			continue
-		}
-		mi.mu.Unlock()
-		log.Println("Run: No future found for transaction ID:", msg.GetTransactionID())
-		if mi.processor != nil {
-			log.Println("Run: Processing message with custom processor")
-			mi.processor(msg, mi)
+
+			if msg.GetMessageType() == messages.Error {
+				ch <- messages.NewErrorMessage(msg.GetTransactionID()) // Send error message to future
+			} else {
+				log.Println("Run: Message content:", msg)
+				ch <- msg // Send actual response to future
+			}
+			close(ch) // Close the channel to signal completion
+			log.Println("Run: Handled response for transaction ID:", msg.GetTransactionID())
 		} else {
-			log.Println("Run: No processor set, ignoring message of type:", envelope.MessageType)
+			mi.mu.Unlock()
+			// If no future channel was found, process the message as unsolicited
+			log.Println("Processing unsolicited message of type:", msg.GetMessageType())
+			go mi.processor(msg, mi) // Process in a new goroutine
 		}
-		log.Println("Run: Processed message of type:", envelope.MessageType, "with transaction ID:", msg.GetTransactionID())
-		log.Println("Run: Message content:", msg)
-		log.Println("Run: Waiting for next message...")		
 	}
 }
 
@@ -163,7 +162,7 @@ func (mi *MessagingInitiator) SendMessage(msg messages.IMessage) <-chan messages
 				mi.mu.Lock()
 				delete(mi.sentRequests, msg.GetTransactionID())
 				mi.mu.Unlock()
-			case <-time.After(2 * time.Second):
+			case <-time.After(3 * time.Second):
 				log.Println("SendMessage: Stream closed before response for transaction ID: ", msg.GetTransactionID())
 				close(future)
 				mi.mu.Lock()
