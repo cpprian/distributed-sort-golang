@@ -79,7 +79,7 @@ func (mi *MessagingInitiator) Run() {
 			log.Println("Error decoding raw JSON: ", err)
 			return
 		}
-	
+
 		var envelope Envelope
 		if err := json.Unmarshal(rawMap["messageType"], &envelope.MessageType); err != nil {
 			log.Println("Failed to read messageType:", err)
@@ -89,27 +89,27 @@ func (mi *MessagingInitiator) Run() {
 			log.Println("Failed to read transactionId:", err)
 			continue
 		}
-	
+
 		envelope.Raw, _ = json.Marshal(rawMap)
-	
+
 		info, ok := messages.MessageRegistry[envelope.MessageType]
 		if !ok {
 			log.Println("Run: Unknown message type received:", envelope.MessageType)
 			continue
 		}
-	
+
 		msgPtr := reflect.New(info.GoType).Interface()
 		if err := json.Unmarshal(envelope.Raw, msgPtr); err != nil {
 			log.Println("Error unmarshalling into typed message: ", err)
 			continue
 		}
-	
+
 		msg, ok := msgPtr.(messages.IMessage)
 		if !ok {
 			log.Println("Decoded message does not implement IMessage")
 			continue
 		}
-	
+
 		mi.mu.Lock()
 		ch, found := mi.sentRequests[msg.GetTransactionID()]
 		if found {
@@ -241,12 +241,12 @@ func (mi *MessagingInitiator) GetRemoteAddress() ma.Multiaddr {
 		ID:    mi.stream.Conn().RemotePeer(),
 		Addrs: []ma.Multiaddr{mi.stream.Conn().RemoteMultiaddr()},
 	}
-	
+
 	fullAddrs, err := peer.AddrInfoToP2pAddrs(&addrInfo)
 	if err != nil || len(fullAddrs) == 0 {
 		log.Fatalf("MI_GetRemoteAddress: Failed to convert to full multiaddr: %v", err)
 	}
-	
+
 	return fullAddrs[0]
 }
 
@@ -316,7 +316,7 @@ func (mp *MessagingProtocol) Dial(host host.Host, addr ma.Multiaddr) (*Messaging
 
 	log.Printf("Dial: Dialing peer %s at %v\n", peerInfo.ID, peerInfo.Addrs)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3 * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	if err := host.Connect(ctx, *peerInfo); err != nil {

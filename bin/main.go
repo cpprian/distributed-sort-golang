@@ -46,7 +46,7 @@ func main() {
 
 	sortingManager.Activate(targetAddr)
 	log.Println("Activated node with ID:", sortingManager.ID, "and address:", sortingManager.Host.Host.Addrs())
-	
+
 	for range 3 {
 		sortingManager.AddItem(int64(rand.Intn(100)))
 	}
