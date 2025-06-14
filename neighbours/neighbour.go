@@ -15,3 +15,11 @@ func NewNeighbour(multiaddr ma.Multiaddr, id int64) *Neighbour {
 		ID:        id,
 	}
 }
+
+func (n *Neighbour) GetMultiaddr() ma.Multiaddr {
+	return n.Multiaddr
+}
+
+func (n *Neighbour) GetID() int64 {
+	return n.ID
+}

@@ -1,6 +1,7 @@
 package sorting
 
 import (
+	"context"
 	"log"
 	"sort"
 	"sync"
@@ -15,24 +16,30 @@ import (
 )
 
 type SortingManager struct {
-	ID                 int64
-	Items              []int64
-	ParticipatingNodes map[int64]neighbours.Neighbour
-	Host               *networks.Libp2pHost
-	Self               *neighbours.Neighbour
-	Messaging          networks.MessagingController
-	mu                 sync.Mutex
+	ID                       int64
+	Items                    []int64
+	ParticipatingNodes       map[int64]neighbours.Neighbour
+	LastMessageFromNeighbour map[int64]int64
+	RightNodeItemsBackup     map[int64][]int64
+	Host                     *networks.Libp2pHost
+	Self                     *neighbours.Neighbour
+	Messaging                networks.MessagingController
+	mu                       sync.Mutex
+	ctx                      context.Context // Context for managing lifecycle
 }
 
 func NewSortingManager() *SortingManager {
 	return &SortingManager{
-		ID:                 0,
-		Items:              []int64{},
-		ParticipatingNodes: make(map[int64]neighbours.Neighbour),
-		Host:               networks.NewEmptyLibp2pHost(),
-		Self:               nil,
-		Messaging:          nil,
-		mu:                 sync.Mutex{},
+		ID:                       0,
+		Items:                    []int64{},
+		ParticipatingNodes:       make(map[int64]neighbours.Neighbour),
+		LastMessageFromNeighbour: make(map[int64]int64),
+		RightNodeItemsBackup:     make(map[int64][]int64),
+		Host:                     networks.NewEmptyLibp2pHost(),
+		Self:                     nil,
+		Messaging:                nil,
+		mu:                       sync.Mutex{},
+		ctx:                      context.Background(),
 	}
 }
 
@@ -82,6 +89,10 @@ func (sm *SortingManager) Activate(knownParticipant ma.Multiaddr) {
 		log.Printf("Setting self ID to %d and address to %s\n", sm.Self.ID, sm.Self.Multiaddr.String())
 		sm.AnnounceSelf()
 	}
+
+	go sm.startPeriodicCornerItemChanges()
+	go sm.startPeriodicNodeTimeouts()
+	go sm.startPeriodicItemsBackup()
 }
 
 func (sm *SortingManager) AnnounceSelf() {
@@ -268,8 +279,15 @@ func (sm *SortingManager) ProcessMessage(msg messages.IMessage, controller netwo
 		log.Printf("Received ConfirmMessage: %s", msg)
 	case *messages.ItemExchangeMessage:
 		log.Printf("Received ItemExchangeMessage: %s", msg)
-		// sm.OrderItemsExchange(controller, m.OfferedItem, m.WantedItem, m.SenderID, m.GetTransactionID())
-		// sm.RespondToItemExchange(*m, controller)
+	case *messages.InvalidateNodeMessage:
+		log.Println("Received InvalidateNodeMessage, removing node...")
+		sm.processInvalidateMessage(m, controller)
+	case *messages.ItemsBackupMessage:
+		log.Printf("Received ItemsBackupMessage: %s", msg)
+		sm.mu.Lock()
+		defer sm.mu.Unlock()
+		sm.RightNodeItemsBackup[m.GetSenderID()] = m.GetItems()
+		log.Printf("Backup items from node %d stored successfully.", m.GetSenderID())
 	default:
 		log.Printf("Unknown message type: %T\n", msg)
 	}

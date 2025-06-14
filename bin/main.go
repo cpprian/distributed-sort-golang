@@ -57,7 +57,7 @@ func main() {
 	go func() {
 		for {
 			var input string
-			fmt.Print("Enter command (allitems, items, add <number>, del <number>, nodes): ")
+			fmt.Print("Enter command (allitems, items, add <number>, del <number>, nodes, id): ")
 			if !scanner.Scan() {
 				log.Println("Error reading input:", scanner.Err())
 				continue
@@ -77,6 +77,8 @@ func main() {
 				for id, addr := range sortingManager.ParticipatingNodes {
 					fmt.Printf("Node ID: %d, Address: %v\n", id, addr)
 				}
+			case "id":
+				fmt.Println("Node ID:", sortingManager.ID)
 			default:
 				if strings.HasPrefix(input, "add ") {
 					numStr := strings.TrimSpace(strings.TrimPrefix(input, "add "))

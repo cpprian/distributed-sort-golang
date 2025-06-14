@@ -58,7 +58,7 @@ func (sm *SortingManager) sendMessageOnCornerItemChange(neighbour *neighbours.Ne
 
 		select {
 		case response := <-responseChan:
-			log.Println("Response:", response, "\n")
+			log.Println("Response:", response)
 			if ItemExchangeMsg, ok := response.(*messages.ItemExchangeMessage); ok {
 				sm.RespondToItemExchange(ItemExchangeMsg, controller)
 			} else {
@@ -184,6 +184,8 @@ func (sm *SortingManager) ProcessCornerItemChange(msg messages.CornerItemChangeM
 
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
+
+	sm.LastMessageFromNeighbour[msg.SenderID] = time.Now().UnixMilli()
 
 	sent := false
 	if msg.SenderID > sm.ID {
