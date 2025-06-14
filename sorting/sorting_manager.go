@@ -90,9 +90,9 @@ func (sm *SortingManager) Activate(knownParticipant ma.Multiaddr) {
 		sm.AnnounceSelf()
 	}
 
-	go sm.startPeriodicCornerItemChanges()
-	go sm.startPeriodicNodeTimeouts()
-	go sm.startPeriodicItemsBackup()
+	// go sm.startPeriodicCornerItemChanges()
+	// go sm.startPeriodicNodeTimeouts()
+	// go sm.startPeriodicItemsBackup()
 }
 
 func (sm *SortingManager) AnnounceSelf() {
@@ -226,7 +226,7 @@ func (sm *SortingManager) GetAllItems() []int64 {
 
 	allItems = append(sm.Items, allItems...)
 	sort.Slice(allItems, func(i, j int) bool {
-		return allItems[i] < allItems[j]
+		return allItems[i] > allItems[j]
 	})
 	return allItems
 }

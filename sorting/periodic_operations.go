@@ -7,7 +7,7 @@ import (
 
 // startPeriodicCornerItemChanges implements the TimerTask logic.
 func (sm *SortingManager) startPeriodicCornerItemChanges() {
-	ticker := time.NewTicker(500 * time.Millisecond) // Every 500ms
+	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
@@ -19,11 +19,11 @@ func (sm *SortingManager) startPeriodicCornerItemChanges() {
 				lastItem := sm.GetLastItem()
 				leftNeighbour := sm.GetLeftNeighbour()
 				rightNeighbour := sm.GetRightNeighbour()
-				sm.mu.Unlock()
 
 				sm.sendMessageOnCornerItemChange(leftNeighbour, firstItem)
 				sm.sendMessageOnCornerItemChange(rightNeighbour, lastItem)
 			}
+			sm.mu.Unlock()
 		case <-sm.ctx.Done(): // Stop when SortingManager context is cancelled
 			log.Println("Stopping periodic corner item change messages.")
 			return
@@ -33,7 +33,7 @@ func (sm *SortingManager) startPeriodicCornerItemChanges() {
 
 // sendMessageOnCornerItemChange sends messages to the left and right neighbours
 func (sm *SortingManager) startPeriodicNodeTimeouts() {
-	ticker := time.NewTicker(1 * time.Second) // Every 1 second
+	ticker := time.NewTicker(1500 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
@@ -43,7 +43,7 @@ func (sm *SortingManager) startPeriodicNodeTimeouts() {
 			for nodeID := range sm.LastMessageFromNeighbour {
 				if sm.LastMessageFromNeighbour[nodeID]+1500 < time.Now().UnixMilli() {
 					log.Printf("Node %d has timed out, processing timeout.", nodeID)
-					sm.ProcessNodeTimeout(nodeID)
+					sm.processNodeTimeout(nodeID)
 				}
 			}
 			sm.mu.Unlock()
@@ -56,7 +56,7 @@ func (sm *SortingManager) startPeriodicNodeTimeouts() {
 
 // sendMessageOnCornerItemChange sends messages to the left and right neighbours
 func (sm *SortingManager) startPeriodicItemsBackup() {
-	ticker := time.NewTicker(1 * time.Second) // Every 1 second
+	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
 	for {
