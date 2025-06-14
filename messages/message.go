@@ -9,14 +9,16 @@ import (
 type MessageType string
 
 const (
-	ItemExchange         MessageType = "ITEM_EXCHANGE"
-	CornerItemChange     MessageType = "CORNER_ITEM_CHANGE"
-	NodesList            MessageType = "NODES_LIST"
-	NodesListResponse    MessageType = "NODES_LIST_RESPONSE"
-	AnnounceSelf         MessageType = "ANNOUNCE_SELF"
-	GetItems             MessageType = "GET_ITEMS"
-	Confirm              MessageType = "CONFIRM"
-	Error                MessageType = "ERROR"
+	ItemExchange      MessageType = "ITEM_EXCHANGE"
+	CornerItemChange  MessageType = "CORNER_ITEM_CHANGE"
+	InvalidateNode    MessageType = "INVALIDATE_NODE"
+	ItemsBackup       MessageType = "ITEMS_BACKUP"
+	NodesList         MessageType = "NODES_LIST"
+	NodesListResponse MessageType = "NODES_LIST_RESPONSE"
+	AnnounceSelf      MessageType = "ANNOUNCE_SELF"
+	GetItems          MessageType = "GET_ITEMS"
+	Confirm           MessageType = "CONFIRM"
+	Error             MessageType = "ERROR"
 )
 
 type MessageInfo struct {
@@ -25,14 +27,16 @@ type MessageInfo struct {
 }
 
 var MessageRegistry = map[MessageType]MessageInfo{
-	ItemExchange:         {reflect.TypeOf(ItemExchangeMessage{}), true},
-	CornerItemChange:     {reflect.TypeOf(CornerItemChangeMessage{}), true},
-	NodesList:            {reflect.TypeOf(NodesListMessage{}), true},
-	NodesListResponse:    {reflect.TypeOf(NodesListResponseMessage{}), false},
-	AnnounceSelf:         {reflect.TypeOf(AnnounceSelfMessage{}), false},
-	GetItems:             {reflect.TypeOf(GetItemsMessage{}), true},
-	Confirm:              {reflect.TypeOf(ConfirmMessage{}), false},
-	Error:                {reflect.TypeOf(ErrorMessage{}), false},
+	ItemExchange:      {reflect.TypeOf(ItemExchangeMessage{}), true},
+	CornerItemChange:  {reflect.TypeOf(CornerItemChangeMessage{}), true},
+	InvalidateNode:    {reflect.TypeOf(InvalidateNodeMessage{}), true},
+	ItemsBackup:       {reflect.TypeOf(ItemsBackupMessage{}), false},
+	NodesList:         {reflect.TypeOf(NodesListMessage{}), true},
+	NodesListResponse: {reflect.TypeOf(NodesListResponseMessage{}), false},
+	AnnounceSelf:      {reflect.TypeOf(AnnounceSelfMessage{}), false},
+	GetItems:          {reflect.TypeOf(GetItemsMessage{}), true},
+	Confirm:           {reflect.TypeOf(ConfirmMessage{}), false},
+	Error:             {reflect.TypeOf(ErrorMessage{}), false},
 }
 
 type IMessage interface {
