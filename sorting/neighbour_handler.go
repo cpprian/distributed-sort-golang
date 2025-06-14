@@ -55,12 +55,13 @@ func (sm *SortingManager) processInvalidateMessage(invalidateNodeMessage *messag
 	delete(sm.ParticipatingNodes, invalidateNodeMessage.GetID())
 	delete(sm.LastMessageFromNeighbour, invalidateNodeMessage.GetID())
 
+	var rightNeigbourList []int64
 	if backupItems, exists := sm.RightNodeItemsBackup[invalidateNodeMessage.ID]; exists {
-		sm.Items = append(sm.Items, backupItems...)
+		rightNeigbourList := append(rightNeigbourList, backupItems...)
+		sm.RightNodeItemsBackup[invalidateNodeMessage.ID] = rightNeigbourList
 		sort.Slice(sm.Items, func(i, j int) bool {
 			return sm.Items[i] > sm.Items[j]
 		})
-		delete(sm.RightNodeItemsBackup, invalidateNodeMessage.ID)
 		log.Printf("ProcessInvalidateMessage: Added backup items from node %d, new items: %v", invalidateNodeMessage.ID, sm.Items)
 	}
 
