@@ -90,9 +90,9 @@ func (sm *SortingManager) Activate(knownParticipant ma.Multiaddr) {
 		sm.AnnounceSelf()
 	}
 
-	// go sm.startPeriodicCornerItemChanges()
-	// go sm.startPeriodicNodeTimeouts()
-	// go sm.startPeriodicItemsBackup()
+	go sm.startPeriodicCornerItemChanges()
+	go sm.startPeriodicNodeTimeouts()
+	go sm.startPeriodicItemsBackup()
 }
 
 func (sm *SortingManager) AnnounceSelf() {
