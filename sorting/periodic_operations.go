@@ -63,11 +63,18 @@ func (sm *SortingManager) startPeriodicItemsBackup() {
 		select {
 		case <-ticker.C:
 			sm.mu.Lock()
+			if sm.ParticipatingNodes == nil {
+				log.Println("No participating nodes, skipping items backup.")
+				sm.mu.Unlock()
+				continue
+			}
 			leftNeighbour := sm.GetLeftNeighbour()
 			rightNeighbour := sm.GetRightNeighbour()
 			if leftNeighbour != nil {
+				log.Println("Sending items backup to left neighbour.")
 				sm.sendItemsBackupMessage(leftNeighbour)
-			} else {
+			} else if rightNeighbour != nil {
+				log.Println("No left neighbour found, sending items backup to right neighbour.")
 				sm.sendItemsBackupMessage(rightNeighbour)
 			}
 			sm.mu.Unlock()
