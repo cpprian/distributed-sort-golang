@@ -13,37 +13,28 @@ func (sm *SortingManager) processNodeTimeout(nodeID int64) {
 	log.Printf("ProcessNodeTimeout: Sending invalidate messages for node %d due to timeout.", nodeID)
 
 	for _, neighbour := range sm.ParticipatingNodes {
-		go func() {
-			controller, err := networks.DialByMultiaddr(sm.Host.Host, neighbour.Multiaddr, sm.Messaging.GetProtocolID(), sm.Messaging.GetMessageProcessor())
-			if err != nil {
-				log.Printf("ProcessNodeTimeout: Failed to dial neighbour %s: %v", neighbour.Multiaddr.String(), err)
-				return
-			}
+		if sm.Self.GetID() == neighbour.ID {
+			sm.handleNeighbourTimeouts(nodeID)
+			continue
+		}
 
-			invalidateNodeMessage := messages.NewInvalidateNodeMessage(nodeID)
-			responseChan := controller.SendMessage(invalidateNodeMessage)
+		controller, err := networks.DialByMultiaddr(sm.Host.Host, neighbour.Multiaddr, sm.Messaging.GetProtocolID(), sm.Messaging.GetMessageProcessor())
+		if err != nil {
+			log.Printf("ProcessNodeTimeout: Failed to dial neighbour %s: %v", neighbour.Multiaddr.String(), err)
+			sm.handleNeighbourTimeouts(nodeID)
+			return
+		}
 
-			response := <-responseChan
-			if response == nil {
-				log.Printf("ProcessNodeTimeout: Received nil response for invalidateNode from %s", neighbour.Multiaddr.String())
-				sm.mu.Lock()
-				delete(sm.ParticipatingNodes, neighbour.ID)
-				sm.mu.Unlock()
-				log.Printf("ProcessNodeTimeout: Node %d has been removed from participating nodes due to timeout.", neighbour.ID)
-				controller.Close()
-				return
-			}
-
-			if errorMessage, ok := response.(*messages.ErrorMessage); ok {
-				log.Printf("ProcessNodeTimeout: Error when receiving response for invalidateNode from %s: %v", neighbour.Multiaddr.String(), errorMessage)
-				sm.mu.Lock()
-				delete(sm.ParticipatingNodes, neighbour.ID)
-				sm.mu.Unlock()
-			} else {
-				log.Printf("ProcessNodeTimeout: Successfully sent invalidateNode to %s", neighbour.Multiaddr.String())
-				controller.Close()
-			}
-		}()
+		invalidateNodeMessage := messages.NewInvalidateNodeMessage(nodeID)
+		responseChan := controller.SendMessage(invalidateNodeMessage)
+		
+		if response := <-responseChan; response != nil {
+			log.Printf("ProcessNodeTimeout: Error when receiving response for invalidateNode from %s: %v", neighbour.Multiaddr.String(), response)
+			sm.handleNeighbourTimeouts(nodeID)
+		} else {
+			log.Printf("ProcessNodeTimeout: Successfully sent invalidateNode to %s", neighbour.Multiaddr.String())
+			controller.Close()
+		}
 	}
 }
 
@@ -52,50 +43,38 @@ func (sm *SortingManager) processInvalidateMessage(invalidateNodeMessage *messag
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	delete(sm.ParticipatingNodes, invalidateNodeMessage.GetID())
-	delete(sm.LastMessageFromNeighbour, invalidateNodeMessage.GetID())
-
-	var rightNeigbourList []int64
-	if backupItems, exists := sm.RightNodeItemsBackup[invalidateNodeMessage.ID]; exists {
-		rightNeigbourList := append(rightNeigbourList, backupItems...)
-		sm.RightNodeItemsBackup[invalidateNodeMessage.ID] = rightNeigbourList
-		sort.Slice(sm.Items, func(i, j int) bool {
-			return sm.Items[i] > sm.Items[j]
-		})
-		log.Printf("ProcessInvalidateMessage: Added backup items from node %d, new items: %v", invalidateNodeMessage.ID, sm.Items)
-	}
+	sm.handleNeighbourTimeouts(invalidateNodeMessage.GetID())
 
 	responseMsg := messages.NewConfirmMessage(invalidateNodeMessage.TransactionID)
 	controller.SendMessage(responseMsg)
 	log.Printf("ProcessInvalidateMessage: Sent confirmation for transaction ID %s", invalidateNodeMessage.TransactionID)
 }
 
+func (sm *SortingManager) handleNeighbourTimeouts(nodeID int64) {
+	delete(sm.ParticipatingNodes, nodeID)
+	delete(sm.LastMessageFromNeighbour, nodeID)
+
+	log.Println("handleNeighbourTimeouts: Backup items: ", sm.RightNodeItemsBackup[nodeID], " from node ", nodeID)
+	if backupItems, exists := sm.RightNodeItemsBackup[nodeID]; exists {
+		sm.Items = append(sm.Items, backupItems...)
+		delete(sm.RightNodeItemsBackup, nodeID)
+		sort.Slice(sm.Items, func(i, j int) bool {
+			return sm.Items[i] > sm.Items[j]
+		})
+		log.Printf("handleNeighbourTimeouts: Added backup items from node %d, new items: %v", nodeID, sm.Items)
+	}
+}
+
 func (sm *SortingManager) sendItemsBackupMessage(neighbour *neighbours.Neighbour) {
 	log.Printf("SendItemsBackupMessage: Sending items backup to neighbour %d at %s", neighbour.ID, neighbour.Multiaddr.String())
 
-	go func() {
-		controller, err := networks.DialByMultiaddr(sm.Host.Host, neighbour.Multiaddr, sm.Messaging.GetProtocolID(), sm.Messaging.GetMessageProcessor())
-		if err != nil {
-			log.Printf("SendItemsBackupMessage: Failed to dial neighbour %s: %v", neighbour.Multiaddr.String(), err)
-			return
-		}
+	controller, err := networks.DialByMultiaddr(sm.Host.Host, neighbour.Multiaddr, sm.Messaging.GetProtocolID(), sm.Messaging.GetMessageProcessor())
+	if err != nil {
+		log.Printf("SendItemsBackupMessage: Failed to dial neighbour %s: %v", neighbour.Multiaddr.String(), err)
+		return
+	}
 
-		itemsBackupMessage := messages.NewItemsBackupMessage(sm.Items, neighbour.GetID())
-		responseChan := controller.SendMessage(itemsBackupMessage)
-
-		response := <-responseChan
-		if response == nil {
-			log.Printf("SendItemsBackupMessage: Received nil response for items backup from %s", neighbour.Multiaddr.String())
-			controller.Close()
-			return
-		}
-
-		if errorMessage, ok := response.(*messages.ErrorMessage); ok {
-			log.Printf("SendItemsBackupMessage: Error when receiving response for items backup from %s: %v", neighbour.Multiaddr.String(), errorMessage)
-			controller.Close()
-		} else {
-			log.Printf("SendItemsBackupMessage: Successfully sent items backup to %s", neighbour.Multiaddr.String())
-			controller.Close()
-		}
-	}()
+	itemsBackupMessage := messages.NewItemsBackupMessage(sm.Items, sm.Self.GetID())
+	log.Println("SendItemsBackupMessage: Items backup message created with items:", sm.Items)
+	controller.SendMessage(itemsBackupMessage)
 }

@@ -288,6 +288,7 @@ func (sm *SortingManager) ProcessMessage(msg messages.IMessage, controller netwo
 		defer sm.mu.Unlock()
 		sm.RightNodeItemsBackup[m.GetSenderID()] = m.GetItems()
 		log.Printf("Backup items from node %d stored successfully.", m.GetSenderID())
+		log.Println("Current RightNodeItemsBackup:", sm.RightNodeItemsBackup)
 	default:
 		log.Printf("Unknown message type: %T\n", msg)
 	}
