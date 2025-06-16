@@ -22,7 +22,13 @@ func main() {
 	messaging := networks.NewMessagingProtocol(sortingManager.ProcessMessage)
 	sortingManager.SetMessagingController(messaging)
 
-	host, err := networks.NewLibp2pHost(messaging)
+	var port string
+	if len(os.Args) > 1 {
+		log.Println("Using provided port:", os.Args[1])
+		port = os.Args[1]
+	}
+
+	host, err := networks.NewLibp2pHost(port, messaging)
 	if err != nil {
 		log.Fatalf("Failed to create libp2p host: %v", err)
 		return
@@ -32,11 +38,11 @@ func main() {
 	log.Println("Host set with address:", host.Host.Addrs(), "ID:", host.Host.ID())
 
 	var targetAddr ma.Multiaddr
-	if len(os.Args) > 1 {
+	if len(os.Args) > 2 {
 		var err error
-		targetAddr, err = ma.NewMultiaddr(os.Args[1])
+		targetAddr, err = ma.NewMultiaddr(os.Args[2])
 		if err != nil {
-			log.Printf("Invalid multiaddress: %s, error: %v\n", os.Args[1], err)
+			log.Printf("Invalid multiaddress: %s, error: %v\n", os.Args[2], err)
 			return
 		}
 		log.Println("Target address provided:", targetAddr)
@@ -47,7 +53,7 @@ func main() {
 	sortingManager.Activate(targetAddr)
 	log.Println("Activated node with ID:", sortingManager.ID, "and address:", sortingManager.Host.Host.Addrs())
 
-	for range 3 {
+	for range 10 {
 		sortingManager.AddItem(int64(rand.Intn(100)))
 	}
 

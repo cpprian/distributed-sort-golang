@@ -19,6 +19,6 @@ RUN apt-get update && \
 
 ENTRYPOINT ["/usr/local/bin/edcs-sort"]
 
-EXPOSE 8080
+EXPOSE 8070
 
-CMD ["./edcs-sort"]
+CMD [ "8070" ]
