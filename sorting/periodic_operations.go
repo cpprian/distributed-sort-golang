@@ -7,7 +7,7 @@ import (
 
 // startPeriodicCornerItemChanges implements the TimerTask logic.
 func (sm *SortingManager) startPeriodicCornerItemChanges() {
-	ticker := time.NewTicker(1500 * time.Millisecond)
+	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
@@ -33,7 +33,7 @@ func (sm *SortingManager) startPeriodicCornerItemChanges() {
 
 // sendMessageOnCornerItemChange sends messages to the left and right neighbours
 func (sm *SortingManager) startPeriodicNodeTimeouts() {
-	ticker := time.NewTicker(3000 * time.Millisecond)
+	ticker := time.NewTicker(1500 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
@@ -41,7 +41,7 @@ func (sm *SortingManager) startPeriodicNodeTimeouts() {
 		case <-ticker.C:
 			sm.mu.Lock()
 			for nodeID := range sm.LastMessageFromNeighbour {
-				if sm.LastMessageFromNeighbour[nodeID]+3000 < time.Now().UnixMilli() {
+				if sm.LastMessageFromNeighbour[nodeID]+1500 < time.Now().UnixMilli() {
 					log.Printf("Node %d has timed out, processing timeout.", nodeID)
 					sm.processNodeTimeout(nodeID)
 				}
@@ -56,7 +56,7 @@ func (sm *SortingManager) startPeriodicNodeTimeouts() {
 
 // sendMessageOnCornerItemChange sends messages to the left and right neighbours
 func (sm *SortingManager) startPeriodicItemsBackup() {
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(1000 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {

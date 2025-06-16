@@ -27,7 +27,7 @@ func (sm *SortingManager) processNodeTimeout(nodeID int64) {
 
 		invalidateNodeMessage := messages.NewInvalidateNodeMessage(nodeID)
 		responseChan := controller.SendMessage(invalidateNodeMessage)
-		
+
 		if response := <-responseChan; response != nil {
 			log.Printf("ProcessNodeTimeout: Error when receiving response for invalidateNode from %s: %v", neighbour.Multiaddr.String(), response)
 			sm.handleNeighbourTimeouts(nodeID)
