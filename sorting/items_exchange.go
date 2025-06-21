@@ -194,7 +194,6 @@ func (sm *SortingManager) ProcessCornerItemChange(msg messages.CornerItemChangeM
 			sent = true
 		} else {
 			log.Printf("No exchange needed: local last item %d is not greater than incoming item %d\n", sm.GetLastItem(), msg.Item)
-			return
 		}
 	} else {
 		log.Printf("ProcessCornerItemChange: Sender ID %d is less than or equal to local ID %d\n", msg.SenderID, sm.ID)
@@ -204,7 +203,6 @@ func (sm *SortingManager) ProcessCornerItemChange(msg messages.CornerItemChangeM
 			sent = true
 		} else {
 			log.Printf("No exchange needed: local first item %d is not less than incoming item %d\n", sm.GetFirstItem(), msg.Item)
-			return
 		}
 	}
 

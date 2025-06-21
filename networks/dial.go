@@ -3,6 +3,7 @@ package networks
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -22,6 +23,11 @@ func DialMessagingController(h host.Host, peerID peer.ID, protocolID protocol.ID
 
 	controller := NewMessagingInitiator(processor, stream)
 	go controller.Run()
+
+	go func() {
+		time.Sleep(5 * time.Second)
+		stream.Close()
+	}()
 	log.Println("Successfully dialed peer:", peerID)
 	return controller, nil
 }

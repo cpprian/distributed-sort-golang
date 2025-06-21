@@ -16,19 +16,22 @@ import (
 )
 
 func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	log.Println("Starting distributed sorting application...")
 
 	sortingManager := sorting.NewSortingManager()
 	messaging := networks.NewMessagingProtocol(sortingManager.ProcessMessage)
 	sortingManager.SetMessagingController(messaging)
 
-	var port string
+	var dest string
 	if len(os.Args) > 1 {
 		log.Println("Using provided port:", os.Args[1])
-		port = os.Args[1]
+		dest = os.Args[1]
+	} else {
+		dest = "/dns4/127.0.0.1/tcp/0"
 	}
 
-	host, err := networks.NewLibp2pHost(port, messaging)
+	host, err := networks.NewLibp2pHost(dest, messaging)
 	if err != nil {
 		log.Fatalf("Failed to create libp2p host: %v", err)
 		return
