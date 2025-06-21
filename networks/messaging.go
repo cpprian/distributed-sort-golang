@@ -47,6 +47,11 @@ func (mp *MessagingProtocol) HandleStream(s network.Stream) {
 	mp.initiator = controller
 	log.Println("New stream received, starting MessagingInitiator...")
 	go controller.Run()
+	go func() {
+		time.Sleep(5 * time.Second)
+		s.Close()
+		log.Println("Stream closed after 5 seconds of inactivity.")
+	}()
 }
 
 type MessagingInitiator struct {
@@ -77,16 +82,28 @@ func (mi *MessagingInitiator) Run() {
 		var rawMap map[string]json.RawMessage
 		if err := decoder.Decode(&rawMap); err != nil {
 			log.Println("Error decoding raw JSON: ", err)
+			go func() {
+				time.Sleep(5 * time.Second)
+				mi.stream.Close()
+			}()
 			return
 		}
 
 		var envelope Envelope
 		if err := json.Unmarshal(rawMap["messageType"], &envelope.MessageType); err != nil {
 			log.Println("Failed to read messageType:", err)
+			go func() {
+				time.Sleep(5 * time.Second)
+				mi.stream.Close()
+			}()
 			continue
 		}
 		if err := json.Unmarshal(rawMap["transactionId"], &envelope.TransactionID); err != nil {
 			log.Println("Failed to read transactionId:", err)
+			go func() {
+				time.Sleep(5 * time.Second)
+				mi.stream.Close()
+			}()
 			continue
 		}
 
@@ -95,18 +112,30 @@ func (mi *MessagingInitiator) Run() {
 		info, ok := messages.MessageRegistry[envelope.MessageType]
 		if !ok {
 			log.Println("Run: Unknown message type received:", envelope.MessageType)
+			go func() {
+				time.Sleep(5 * time.Second)
+				mi.stream.Close()
+			}()
 			continue
 		}
 
 		msgPtr := reflect.New(info.GoType).Interface()
 		if err := json.Unmarshal(envelope.Raw, msgPtr); err != nil {
 			log.Println("Error unmarshalling into typed message: ", err)
+			go func() {
+				time.Sleep(5 * time.Second)
+				mi.stream.Close()
+			}()
 			continue
 		}
 
 		msg, ok := msgPtr.(messages.IMessage)
 		if !ok {
 			log.Println("Decoded message does not implement IMessage")
+			go func() {
+				time.Sleep(5 * time.Second)
+				mi.stream.Close()
+			}()
 			continue
 		}
 
@@ -123,12 +152,20 @@ func (mi *MessagingInitiator) Run() {
 				ch <- msg // Send actual response to future
 			}
 			close(ch) // Close the channel to signal completion
+			go func() {
+				time.Sleep(5 * time.Second)
+				mi.stream.Close()
+			}()
 			log.Println("Run: Handled response for transaction ID:", msg.GetTransactionID())
 		} else {
 			mi.mu.Unlock()
 			// If no future channel was found, process the message as unsolicited
 			log.Println("Processing unsolicited message of type:", msg.GetMessageType())
 			go mi.processor(msg, mi) // Process in a new goroutine
+			go func() {
+				time.Sleep(5 * time.Second)
+				mi.stream.Close()
+			}()
 		}
 	}
 }
@@ -147,6 +184,10 @@ func (mi *MessagingInitiator) SendMessage(msg messages.IMessage) <-chan messages
 		log.Println("SendMessage: Failed to write to stream:", err)
 		close(future)
 		delete(mi.sentRequests, msg.GetTransactionID())
+		go func() {
+			time.Sleep(5 * time.Second)
+			mi.stream.Close()
+		}()
 		return future
 	}
 
@@ -161,6 +202,10 @@ func (mi *MessagingInitiator) SendMessage(msg messages.IMessage) <-chan messages
 				log.Println("SendMessage: Closing future channel for transaction ID: ", msg.GetTransactionID())
 				mi.mu.Lock()
 				delete(mi.sentRequests, msg.GetTransactionID())
+				go func() {
+					time.Sleep(5 * time.Second)
+					mi.stream.Close()
+				}()
 				mi.mu.Unlock()
 			case <-time.After(3 * time.Second):
 				log.Println("SendMessage: Stream closed before response for transaction ID: ", msg.GetTransactionID())
@@ -349,6 +394,11 @@ func (mp *MessagingProtocol) Dial(host host.Host, addr ma.Multiaddr) (*Messaging
 
 	initiator := NewMessagingInitiator(mp.processor, stream)
 	go initiator.Run()
+	go func() {
+		time.Sleep(5 * time.Second)
+		mp.initiator.stream.Close()
+		log.Printf("Dial: Stream closed after 5 seconds of inactivity for peer %s", peerInfo.ID)
+	}()
 
 	log.Printf("Dial: Successfully dialed peer %s with protocol %s", peerInfo.ID, mp.GetProtocolID())
 	return initiator, nil

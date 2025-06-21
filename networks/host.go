@@ -28,9 +28,9 @@ func NewEmptyLibp2pHost() *Libp2pHost {
 	}
 }
 
-func NewLibp2pHost(messagingProtocol *MessagingProtocol) (*Libp2pHost, error) {
+func NewLibp2pHost(dest string, messagingProtocol *MessagingProtocol) (*Libp2pHost, error) {
 	log.Println("Creating new Libp2pHost")
-	listenAddr, _ := ma.NewMultiaddr("/ip4/0.0.0.0/tcp/0")
+	listenAddr, _ := ma.NewMultiaddr(dest)
 
 	prvKey, _, err := crypto.GenerateEd25519Key(nil)
 	if err != nil {

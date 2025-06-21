@@ -41,7 +41,7 @@ func (sm *SortingManager) startPeriodicNodeTimeouts() {
 		case <-ticker.C:
 			sm.mu.Lock()
 			for nodeID := range sm.LastMessageFromNeighbour {
-				if sm.LastMessageFromNeighbour[nodeID]+1500 < time.Now().UnixMilli() {
+				if sm.LastMessageFromNeighbour[nodeID] + 1500 < time.Now().UnixMilli() {
 					log.Printf("Node %d has timed out, processing timeout.", nodeID)
 					sm.processNodeTimeout(nodeID)
 				}
